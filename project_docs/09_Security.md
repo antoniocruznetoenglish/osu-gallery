@@ -3,7 +3,7 @@
 > Answers "how do we avoid this getting hacked or leaking data." Skipping this doc isn't "we'll add security later" — it's "we decided, by default, to trust every input and every dependency." Fill this in during the same design pass as 03, not after something breaks.
 
 **Last updated:** 2026-07-16
-**Version:** 0.1 · **Status:** Draft / Review / Frozen / Deprecated
+**Version:** 0.1 · **Status:** Frozen
 **Edit cadence:** Should be stable once Frozen, same as 03. Any change here mid-implementation gets a `06_Decision_Log.md` entry.
 
 ---
