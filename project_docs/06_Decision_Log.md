@@ -38,6 +38,21 @@
 
 ---
 
+### ADR-006: Copy-to-clipboard via right-click context menu + Ctrl+C shortcut
+
+| Field | Detail |
+|---|---|
+| Date | 2026-07-16 |
+| Status | Accepted |
+| Context | Need a way for users to copy pattern raw_code to the system clipboard for pasting into .osu files. Core loop requires this (F4, P0). |
+| Why now | Phase 6 of the implementation roadmap. |
+| Decision | Right-click context menu on thumbnails with "Copy Code" action, plus Ctrl+C keyboard shortcut. Toast notification confirms the copy. `QApplication.clipboard().setText()` for clipboard access. |
+| Alternatives considered | Dedicated "Copy" button on each thumbnail (takes space), drag-to-copy ( unintuitive), toolbar copy button (requires selection state) |
+| Tradeoffs | Context menu is slightly less discoverable than a button, but preserves thumbnail real estate and matches common desktop app patterns. Ctrl+C shortcut mirrors user expectations. |
+| **Future revisit trigger** | If user testing shows context menu is confusing, add a visible copy button as an alternative. |
+
+---
+
 ### ADR-003: Use SQLite with FTS5 for the database
 
 | Field | Detail |

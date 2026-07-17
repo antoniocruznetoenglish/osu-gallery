@@ -25,14 +25,15 @@ Run this any time a new milestone or a non-trivial feature is added — not just
 
 | Phase | Goal | Depends on | Tests | Status |
 |---|---|---|---|---|
-| 1 | Project setup + .osu parser | None | Unit tests for parser (parse valid/invalid code, extract hit objects, timing) | Not started |
-| 2 | SQLite database layer | Phase 1 | Unit tests for CRUD operations, tag many-to-many relationships | Not started |
-| 3 | Basic UI shell | Phase 2 | UI tests for main window, import dialog, empty state rendering | Not started |
-| 4 | Static thumbnail renderer | Phase 3 | Integration tests: parse → store → render thumbnail → display in grid | Not started |
-| 5 | Search bar + FTS5 | Phase 4 | Integration tests: tag indexing, multi-tag queries, real-time filter | Not started |
-| 6 | Copy-to-clipboard + toast | Phase 5 | End-to-end test: import → search → copy → verify clipboard | Not started |
-| 7 | Click-to-expand preview pane | Phase 6 | User testing: static preview displays correctly, metadata shown | Not started |
-| 8 | Polish + PyInstaller packaging | Phase 7 | Final regression test, packaging verification | Not started |
+| 1 | Project setup + .osu parser | None | Unit tests for parser (parse valid/invalid code, extract hit objects, timing) | Done |
+| 2 | SQLite database layer | Phase 1 | Unit tests for CRUD operations, tag many-to-many relationships | Done |
+| 3 | Basic UI shell | Phase 2 | UI tests for main window, import dialog, empty state rendering | Done |
+| 4 | Static thumbnail renderer | Phase 3 | Integration tests: parse → store → render thumbnail → display in grid | Done |
+| 5 | Search bar + FTS5 | Phase 4 | Integration tests: tag indexing, multi-tag queries, real-time filter | Done |
+| 6 | Copy-to-clipboard + toast | Phase 5 | End-to-end test: import → search → copy → verify clipboard | Done |
+| 7 | Click-to-expand preview pane | Phase 6 | User testing: static preview displays correctly, metadata shown | Done |
+| 8 | Polish + PyInstaller packaging | Phase 7 | Final regression test, packaging verification | Done |
+| 9 | First run: logging, entry point, error handling | Phase 8 | Logging config test, graceful ImportError handling test, console + file handler verification | Done |
 
 Keep phases scoped to something demoable — "basic UI," "database layer," "first AI integration" — not vague ("polish").
 
@@ -73,3 +74,13 @@ One line per feature added or changed, with which docs it touched. This becomes 
 | Date | Feature | Docs / spec touched | Notes |
 |---|---|---|---|
 | 2026-07-16 | Project initialized | 00-12 | All design docs filled, roadmap defined |
+| 2026-07-16 | Phase 1: Project setup + .osu parser | 03, 04 | Parser handles circles/sliders/spinners, INI sections, colours; 26 tests passing |
+| 2026-07-16 | Phase 2: SQLite database layer | 03, 04 | GalleryDatabase with CRUD for patterns/tags, PatternTag junction, CASCADE deletes; 26 tests passing |
+| 2026-07-16 | Phase 3: Basic UI shell | 03, 04 | MainWindow with search/grid/empty state, ImportDialog with parse/save/tags, QFlowLayout; 11 UI tests passing |
+| 2026-07-16 | Phase 4: Static thumbnail renderer | 03, 04 | Preview Renderer module with QPixmap rendering, _ThumbnailWidget with hover/click, database commit fixes, 10 integration tests passing |
+| 2026-07-16 | Phase 5: Search bar + FTS5 | 02, 03, 04 | SearchEngine module with SQLite FTS5 full-text search, real-time debounced search bar, tag-based filtering, 17 search tests + 3 UI integration tests passing |
+| 2026-07-16 | Phase 6: Copy-to-clipboard + toast | 02, 03, 04 | _clipboard.py utility, _toast_widget.py with fade animation, right-click context menu + Ctrl+C shortcut on thumbnails, pattern_copied signal, 18 tests passing |
+| 2026-07-16 | Phase 7: Click-to-expand preview pane | 02, 03, 04 | _preview_pane.py with large rendered preview, metadata display (tags, BPM, combo colors), copy code button, QSplitter layout in MainWindow, 19 tests passing |
+| 2026-07-16 | Phase 8: Polish + PyInstaller packaging | 03, 04 | Centralized constants module, PyInstaller spec file, build script, frozen-mode data directory, fixed slider regex, toast timer guard, specific exception handlers, packaging tests |
+| 2026-07-16 | Phase 9: First run — logging, entry point, graceful errors | 03, 04, 08 | Configure logging (console + file handlers per architecture doc §8), add `[project.scripts]` console entry point, wrap app launch in try/except for friendly ImportError/Qt plugin error display, verify database directory creation on startup |
+| 2026-07-16 | Phase 9: First run — logging, entry point, graceful errors | 03, 04, 08 | Configure logging (console + file handlers per architecture doc §8), add `[project.scripts]` console entry point, wrap app launch in try/except for friendly ImportError/Qt plugin error display, verify database directory creation on startup |

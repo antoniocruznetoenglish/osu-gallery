@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "osu-gallery"
+version = "0.1.0"
+description = "A visual reference library for osu! beatmap objects"
+requires-python = ">=3.10"
+dependencies = [
+    "PySide6>=6.5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-qt>=4.2",
+    "ruff>=0.4.0",
+    "pyinstaller>=6.0",
+]
+
+[project.scripts]
+osu-gallery = "osu_gallery.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["osu_gallery*"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

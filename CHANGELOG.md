@@ -11,13 +11,41 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/) â€” 
 ## [Unreleased]
 
 ### Added
--
+- Logging module (`osu_gallery/_logging.py`) with console + rotating file handler (5 MB cap, 2 backups)
+- `[project.scripts]` console entry point (`osu-gallery = "osu_gallery.__main__:main"`) in pyproject.toml
+- Graceful error handling in `__main__.py`: `ImportError`, `OSError` (Qt plugin), and generic exception handlers with friendly user messages via QMessageBox / stderr
+- Startup database directory creation verified on app launch via `get_data_dir()`
+- 15 Phase 9 tests covering logging config, entry point, and error handling
+- `.osu` file parser (`osu_gallery/parser/`) supporting circles, sliders, spinners, INI sections, combo colours
+- 26 unit tests for the parser covering valid/invalid input, all object types, edge cases
+- SQLite database layer (`osu_gallery/db/`) with CRUD for patterns/tags and many-to-many relationships
+- 26 database tests covering tag/pattern CRUD and relationships
+- Main window UI with search bar, import dialog, and thumbnail grid
+- 11 UI tests for main window and import dialog
+- Static thumbnail renderer (`osu_gallery/preview/`) with QPixmap rendering
+- 10 integration tests for parse → store → render → display flow
+- Search/Filter Engine (`osu_gallery/search/`) with SQLite FTS5 full-text search
+- Real-time debounced search bar with tag-based filtering
+- 17 search engine tests + 3 UI integration tests for search
+- Click-to-expand preview pane (`osu_gallery/ui/_preview_pane.py`) with large rendered preview, metadata display (object count, BPM, tags, combo colors), copy code button, and close button
+- QSplitter-based layout in MainWindow for grid + preview side-by-side
+- 19 tests for preview pane functionality
+- PyInstaller packaging spec file (`osu_gallery.spec`) and build script (`build.ps1`)
+- Centralized constants module (`osu_gallery/_constants.py`) with app name, version, UI dimensions, and visual constants
+- `get_data_dir()` helper for resolving the database path in both development and PyInstaller-frozen modes
+- `__version__` export from the package root
+- Packaging verification tests (`tests/test_packaging.py`) covering constants, imports, data directory resolution, and spec file existence
 
 ### Changed
--
+- Replaced blanket `except Exception` handlers with specific `except (OSError, ValueError)` in thumbnail and preview renderers
+- Replaced private `_search_engine._remove_from_fts()` access with public `remove_from_fts()` method on `SearchEngine`
+- Fixed slider path regex in parser to handle comma-containing coordinate data (greedy matching)
+- Added guard against negative stay timer duration in toast widget
+- Fixed type annotations in `ImportDialog._extract_tag_names` and `_show_success` (no longer using `object` type)
+- Resolved relative `gallery.db` path to use `get_data_dir()` for correct behavior in frozen apps
 
 ### Fixed
--
+- Slider path regex that failed for standard osu! format with comma-separated coordinates in path data
 
 ---
 

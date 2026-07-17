@@ -22,8 +22,8 @@ STACK (frozen — do not deviate without asking):
 MODULE BOUNDARIES (see 02_System_Design.md §1 for full detail):
   UI:        Display gallery, search bar, thumbnails, preview pane — NEVER store data or parse .osu
   Storage:   Save/load patterns, manage tags/categories, local database with search indexing — NEVER render visuals
-  Parser:    Parse .osu code blocks into structured object data, translate to visual coordinates — NEVER store or render
-  Preview:   Render visual previews of patterns (read-only) — NEVER edit patterns or parse .osu
+  Parser:    Parse .osu code blocks into structured object data, translate to hit objects — NEVER store or render
+  Preview:   Render visual previews of patterns (read-only, uses parsed coordinates) — NEVER edit patterns or parse .osu
   Search:    Query database, apply multiple filter criteria, rank results — NEVER display results or store patterns
 
 DATA: Patterns (objects, timing, tags) stored in SQLite, must survive reinstall. Thumbnails cached locally, rebuildable from patterns.
@@ -53,7 +53,7 @@ AI RULES:
   - New logic ships with a test in the same change (10_Testing_Strategy.md)
   - Full rules: 05_AI_Collaboration_Rules.md
 
-CURRENT TASK: Design phase complete — ready to start Phase 1 (project setup + .osu parser)
+CURRENT TASK: Phase 8 complete (polish + PyInstaller packaging with 140 passing tests) — MVP feature complete
 ```
 
 ## Mandatory pre-flight check
