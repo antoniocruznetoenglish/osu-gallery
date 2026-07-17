@@ -34,7 +34,8 @@ class _PreviewPane(QWidget):
 
     closed = Signal()
 
-    _PANE_WIDTH = 500
+    _MIN_PANE_WIDTH = 300
+    _MAX_PANE_WIDTH = 1200
     _PREVIEW_HEIGHT = 768
     _LABEL_BG_ALPHA = 180
 
@@ -52,8 +53,8 @@ class _PreviewPane(QWidget):
         self._tags: list[Tag] = []
         self._combo_colors: list[int] = []
 
-        self.setMinimumWidth(self._PANE_WIDTH)
-        self.setMaximumWidth(self._PANE_WIDTH + 100)
+        self.setMinimumWidth(self._MIN_PANE_WIDTH)
+        self.setMaximumWidth(self._MAX_PANE_WIDTH)
         self._apply_style()
         self._setup_ui()
         self._show_empty_state()
@@ -187,7 +188,9 @@ class _PreviewPane(QWidget):
         preview_label = QLabel()
         preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        available_width = self._PANE_WIDTH
+        available_width = self.width()
+        if available_width <= 0:
+            available_width = self._MIN_PANE_WIDTH
         scaled_height = int(available_width * self._PREVIEW_HEIGHT / 1536)
         scaled = self._pixmap.scaled(
             available_width,

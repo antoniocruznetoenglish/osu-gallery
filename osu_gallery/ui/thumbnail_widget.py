@@ -38,6 +38,7 @@ class _ThumbnailWidget(QWidget):
     pattern_clicked = Signal(int)
     pattern_copied = Signal(int)
     pattern_deleted = Signal(int)
+    pattern_edited = Signal(int)
 
     _HOVER_BORDER_COLOR = (90, 150, 220)
     _NORMAL_BORDER_COLOR = (180, 180, 180)
@@ -287,6 +288,9 @@ class _ThumbnailWidget(QWidget):
         copy_action = menu.addAction("Copy Code\tCtrl+C")
         copy_action.triggered.connect(self._on_copy_code)
 
+        edit_action = menu.addAction("Edit Pattern")
+        edit_action.triggered.connect(self._on_edit_requested)
+
         menu.addSeparator()
 
         delete_action = menu.addAction("Delete Pattern")
@@ -311,6 +315,10 @@ class _ThumbnailWidget(QWidget):
 
         if reply == QMessageBox.StandardButton.Yes:
             self.pattern_deleted.emit(self._pattern_id)
+
+    def _on_edit_requested(self) -> None:
+        """Emit the pattern_edited signal to request editing the pattern."""
+        self.pattern_edited.emit(self._pattern_id)
 
     def _on_copy_code(self) -> None:
         """Copy the pattern's raw code (or objects-only code) to the clipboard."""

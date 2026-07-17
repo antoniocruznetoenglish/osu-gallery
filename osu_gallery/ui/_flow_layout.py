@@ -31,6 +31,7 @@ class QFlowLayout(QLayout):
         margin: int | None = None,
         h_spacing: int = -1,
         v_spacing: int = -1,
+        columns: int = 0,
     ) -> None:
         """Create the flow layout.
 
@@ -44,6 +45,10 @@ class QFlowLayout(QLayout):
             Horizontal spacing between items in pixels, or ``-1`` for default.
         v_spacing:
             Vertical spacing between rows in pixels, or ``-1`` for default.
+        columns:
+            Fixed number of columns to display. If 0, items wrap based on
+            available width. If > 0, items are sized to fill exactly this
+            many columns.
         """
         super().__init__(parent)
 
@@ -54,6 +59,7 @@ class QFlowLayout(QLayout):
 
         self._h_spacing = h_spacing
         self._v_spacing = v_spacing
+        self._fixed_columns = columns
         self._items: list[QLayoutItem] = []
 
     # -- QLayout overrides --
@@ -161,6 +167,38 @@ class QFlowLayout(QLayout):
 
         cursor_x = effective_rect.left()
         cursor_y = effective_rect.top()
+
+        if self._fixed_columns > 0:
+            h_spacing = self._h_spacing if self._h_spacing >= 0 else 0
+            v_spacing = self._v_spacing if self._v_spacing >= 0 else 0
+            available_width = effective_rect.width()
+            total_spacing = h_spacing * (self._fixed_columns - 1)
+            item_width = (available_width - total_spacing) // self._fixed_columns
+
+            for item in self._items:
+                widget = item.widget()
+                if widget is not None:
+                    pass
+
+                item_height = item.sizeHint().height()
+                next_x = cursor_x + item_width + h_spacing
+
+                if next_x - h_spacing > effective_rect.right() and cursor_x > effective_rect.left():
+                    cursor_x = effective_rect.left()
+                    cursor_y += self._line_height + v_spacing
+
+                item_rect = QRect(
+                    QPoint(cursor_x, cursor_y),
+                    QSize(item_width, item_height),
+                )
+                if not test_only:
+                    item.setGeometry(item_rect)
+                    if widget is not None:
+                        widget.setFixedSize(item_width, item_height)
+
+                cursor_x += item_width + h_spacing
+
+            return QRect(QPoint(effective_rect.left(), cursor_y), QSize())
 
         for item in self._items:
             widget = item.widget()

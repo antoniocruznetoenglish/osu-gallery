@@ -28,6 +28,7 @@ from osu_gallery.db.models import Pattern
 from osu_gallery.search.engine import SearchEngine, SearchQuery
 from osu_gallery.ui._preview_pane import _PreviewPane
 from osu_gallery.ui._toast_widget import show_toast
+from osu_gallery.ui.edit_dialog import EditDialog
 from osu_gallery.ui.import_dialog import ImportDialog
 from osu_gallery.ui.thumbnail_widget import _ThumbnailWidget
 
@@ -182,7 +183,7 @@ class MainWindow(QMainWindow):
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         grid_widget = QWidget()
-        self._flow_layout = QFlowLayout(grid_widget)
+        self._flow_layout = QFlowLayout(grid_widget, columns=4)
         grid_widget.setLayout(self._flow_layout)
         scroll.setWidget(grid_widget)
 
@@ -201,7 +202,7 @@ class MainWindow(QMainWindow):
         self._splitter.addWidget(self._preview_pane)
 
         # Set splitter sizes: left gets all space, right starts collapsed
-        initial_width = max(800, self.minimumSize().width())
+        initial_width = max(MIN_WINDOW_WIDTH, self.minimumSize().width())
         self._splitter.setSizes([initial_width, 0])
         self._splitter.setStretchFactor(0, 1)
         self._splitter.setStretchFactor(1, 0)
@@ -248,6 +249,7 @@ class MainWindow(QMainWindow):
             )
             widget.pattern_clicked.connect(self._on_pattern_clicked)
             widget.pattern_deleted.connect(self._on_pattern_deleted)
+            widget.pattern_edited.connect(self._on_pattern_edited)
             self._flow_layout.addWidget(widget)
 
         if patterns:
@@ -261,6 +263,17 @@ class MainWindow(QMainWindow):
         self._db.delete_pattern(pattern_id)
         self.refresh()
         show_toast("Pattern deleted", self)
+
+    def _on_pattern_edited(self, pattern_id: int) -> None:
+        """Open the edit dialog for the selected pattern."""
+        pattern = self._db.get_pattern(pattern_id)
+        if pattern is None:
+            logger.warning("Cannot edit: pattern %d not found", pattern_id)
+            return
+
+        dialog = EditDialog(pattern=pattern, db=self._db, parent=self)
+        dialog.finished.connect(self.refresh)
+        dialog.exec()
 
     # -- Signal handlers --
 
@@ -281,11 +294,11 @@ class MainWindow(QMainWindow):
         self._preview_pane.load_pattern(pattern_id)
 
         # Make sure the preview pane is visible in the splitter — use 50% of available width
-        sizes = self._splitter.sizes()
-        if sizes[1] == 0:
-            total_width = sizes[0]
+        total_width = self._splitter.width()
+        if total_width > 0:
             preview_width = total_width // 2
-            self._splitter.setSizes([total_width - preview_width, preview_width])
+            grid_width = total_width - preview_width
+            self._splitter.setSizes([grid_width, preview_width])
 
     def _on_preview_closed(self) -> None:
         """Handle the preview pane being closed — collapse the right side."""

@@ -91,8 +91,8 @@ def test_preview_scrollable_tags(db):
 
 
 def test_preview_pane_uses_correct_dimensions(db):
-    """_PreviewPane uses PREVIEW_HEIGHT=768 and _PANE_WIDTH=500."""
-    assert _PreviewPane._PANE_WIDTH == 500
+    """_PreviewPane uses PREVIEW_HEIGHT=768 and _MIN_PANE_WIDTH=300."""
+    assert _PreviewPane._MIN_PANE_WIDTH == 300
     assert _PreviewPane._PREVIEW_HEIGHT == 768
 
 
