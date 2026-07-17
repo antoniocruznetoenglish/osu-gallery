@@ -55,10 +55,10 @@ Combo2Colour:100,255,100
 Combo3Colour:100,100,255
 
 [HitObjects]
-256,192,1,2,0,0,0
-384,256,6,2,0,0,0,L|480:128,1,100
-512,320,1,2,0,0,0
-256,192,8,2,0,0,0,2000
+256,192,100,6,0,L|480:128,1,100,Normal:Normal:0::
+384,256,300,6,0,B|100:100:200:200:300:300,2,100,0,1,,0,|,0
+512,320,500,5,0,,Normal:Clap:0::
+256,192,700,12,0,2000,Normal:Whistle:0::
 """
 
 
@@ -119,28 +119,27 @@ def test_parse_hit_objects_basic():
 
     assert len(osu.hit_objects) == 4
 
-    # First object: circle at (256, 192)
+    # First object: slider at (256, 192) with type=6 (slider + new_combo)
     obj0 = osu.hit_objects[0]
     assert obj0.x == 256.0
     assert obj0.y == 192.0
-    assert obj0.time == 0
-    assert obj0.combo_colour == 0
-    assert obj0.sound_index == 0
-    assert obj0.is_circle
-    assert not obj0.is_slider
+    assert obj0.time == 100
+    assert not obj0.is_circle
+    assert obj0.is_slider
     assert not obj0.is_spinner
+    assert obj0.is_new_combo
 
 
 def test_parse_hit_objects_slider():
     osu = parse_osu_file(SAMPLE_OSU)
 
-    # Second object: slider at (384, 256)
+    # Second object: slider at (384, 256) with type=2|2 (slider + new_combo)
     obj1 = osu.hit_objects[1]
     assert obj1.is_slider
     assert obj1.slider is not None
     assert obj1.x == 384.0
     assert obj1.y == 256.0
-    assert obj1.slider.repeats == 1
+    assert obj1.slider.repeats == 2
     assert obj1.slider.pixel_length == 100.0
     assert len(obj1.slider.path) > 0
 
@@ -148,7 +147,7 @@ def test_parse_hit_objects_slider():
 def test_parse_hit_objects_spinner():
     osu = parse_osu_file(SAMPLE_OSU)
 
-    # Last object: spinner at (256, 192)
+    # Last object: spinner at (256, 192) with type=8|4 (spinner + new_combo)
     obj3 = osu.hit_objects[3]
     assert obj3.is_spinner
     assert obj3.spinner_end == 2000
@@ -157,8 +156,8 @@ def test_parse_hit_objects_spinner():
 def test_parse_slider_path_linear():
     osu = parse_osu_file(SAMPLE_OSU)
 
-    obj1 = osu.hit_objects[1]
-    slider = obj1.slider
+    obj0 = osu.hit_objects[0]
+    slider = obj0.slider
     assert slider is not None
 
     # Find the linear path segment
@@ -171,17 +170,13 @@ def test_parse_slider_path_linear():
 
 
 def test_parse_slider_path_bezier():
-    content = """[General]
+    osu = parse_osu_file(SAMPLE_OSU)
 
-[HitObjects]
-256,192,2,2,0,0,0,B|100:100:200:200:300:300,1,100
-"""
-    osu = parse_osu_file(content)
-    obj = osu.hit_objects[0]
-    assert obj.is_slider
-    assert obj.slider is not None
+    obj1 = osu.hit_objects[1]
+    slider = obj1.slider
+    assert slider is not None
 
-    bezier_paths = [p for p in obj.slider.path if p.path_type == "B"]
+    bezier_paths = [p for p in slider.path if p.path_type == "B"]
     assert len(bezier_paths) > 0
 
 
@@ -201,7 +196,7 @@ def test_parse_minimal_file():
 AudioFilename: test.mp3
 
 [HitObjects]
-256,192,1,2,0,80,0
+256,192,1000,5,0
 """
     osu = parse_osu_file(minimal)
 
@@ -210,6 +205,7 @@ AudioFilename: test.mp3
     assert osu.hit_objects[0].x == 256.0
     assert osu.hit_objects[0].y == 192.0
     assert osu.hit_objects[0].is_circle
+    assert osu.hit_objects[0].is_new_combo
 
 
 def test_parse_no_hit_objects():
@@ -229,9 +225,9 @@ AudioFilename: test.mp3
 
 [HitObjects]
 // This is a comment
-256,192,1,2,0,80,0
+256,192,1000,5,0
 # Another comment
-384,256,1,2,0,80,0
+384,256,1500,5,0
 """
     osu = parse_osu_file(content)
     assert len(osu.hit_objects) == 2
@@ -242,7 +238,7 @@ def test_parse_default_difficulty_values():
 AudioFilename: test.mp3
 
 [HitObjects]
-256,192,1,2,0,80,0
+256,192,1000,5,0
 """
     osu = parse_osu_file(minimal)
 
@@ -258,7 +254,7 @@ def test_parse_new_combo_flag():
     content = """[General]
 
 [HitObjects]
-256,192,5,2,0,80,0
+256,192,1000,5,0
 """
     osu = parse_osu_file(content)
     obj = osu.hit_objects[0]
@@ -270,7 +266,7 @@ def test_parse_slider_with_edge_sounds():
     content = """[General]
 
 [HitObjects]
-256,192,2,2,0,0,0,L|100:100,1,100,0,1,,,,
+256,192,1000,6,0,L|100:100,1,100,0,1,,0,|,0
 """
     osu = parse_osu_file(content)
     obj = osu.hit_objects[0]
@@ -283,7 +279,7 @@ def test_parse_slider_with_multiplier():
     content = """[General]
 
 [HitObjects]
-256,192,2,2,0,0,0,L|100:100,1,100,,,,2.0,1
+256,192,1000,6,0,L|100:100,1,100,,,,2.0,1
 """
     osu = parse_osu_file(content)
     obj = osu.hit_objects[0]
@@ -296,7 +292,7 @@ def test_parse_spinner_with_end_time():
     content = """[General]
 
 [HitObjects]
-256,192,8,2,0,80,0,3000
+256,192,1000,12,0,3000
 """
     osu = parse_osu_file(content)
     obj = osu.hit_objects[0]
@@ -308,9 +304,9 @@ def test_parse_malformed_hit_object_skipped():
     content = """[General]
 
 [HitObjects]
-256,192,1,2,0,80,0
+256,192,1000,5,0
 not,a,valid,line
-384,256,1,2,0,80,0
+384,256,1500,5,0
 """
     osu = parse_osu_file(content)
     assert len(osu.hit_objects) == 2
@@ -320,8 +316,8 @@ def test_parse_multiple_sliders():
     content = """[General]
 
 [HitObjects]
-256,192,2,2,0,0,0,L|100:100,1,100
-384,256,2,2,0,0,0,L|500:300:600:200,2,200
+256,192,1000,6,0,L|100:100,1,100
+384,256,1500,6,0,L|500:300:600:200,2,200
 """
     osu = parse_osu_file(content)
     assert len(osu.hit_objects) == 2
@@ -340,7 +336,7 @@ Creator:General Creator
 Version:Easy
 
 [HitObjects]
-256,192,1,2,0,80,0
+256,192,1000,5,0
 """
     osu = parse_osu_file(content)
     assert osu.metadata.title == "General Title"
@@ -359,7 +355,7 @@ Title:Metadata Title
 Artist:Metadata Artist
 
 [HitObjects]
-256,192,1,2,0,80,0
+256,192,1000,5,0
 """
     osu = parse_osu_file(content)
     assert osu.metadata.title == "Metadata Title"
@@ -370,7 +366,7 @@ def test_parse_colours_no_colours_section():
     content = """[General]
 
 [HitObjects]
-256,192,1,2,0,80,0
+256,192,1000,5,0
 """
     osu = parse_osu_file(content)
     assert osu.combo_colors == []
@@ -381,7 +377,7 @@ def test_parse_colours_with_hash_prefix():
 Combo1Colour:#FF0000
 
 [HitObjects]
-256,192,1,2,0,80,0
+256,192,1000,5,0
 """
     osu = parse_osu_file(content)
     assert len(osu.combo_colors) == 1
@@ -394,8 +390,131 @@ Combo1Colour:ZZZZZZ
 Combo2Colour:AABBCC
 
 [HitObjects]
-256,192,1,2,0,80,0
+256,192,1000,5,0
 """
     osu = parse_osu_file(content)
     assert len(osu.combo_colors) == 1
     assert osu.combo_colors[0] == 0xAABBCC
+
+
+def test_parse_hit_sample():
+    content = """[General]
+
+[HitObjects]
+256,192,1000,5,0,Normal:Clap:0::
+"""
+    osu = parse_osu_file(content)
+    obj = osu.hit_objects[0]
+    assert obj.hit_sample == "Normal:Clap:0::"
+
+
+def test_parse_combo_colour_derived():
+    content = """[General]
+
+[Colours]
+Combo1Colour:255,0,0
+Combo2Colour:0,255,0
+
+[HitObjects]
+256,192,1000,5,0
+384,256,1500,5,0
+512,192,2000,1,0
+"""
+    osu = parse_osu_file(content)
+    assert len(osu.hit_objects) == 3
+    # First object: combo index 0, colour 0 % 2 = 0
+    assert osu.hit_objects[0].combo_colour == 0
+    # Second object: combo index 1 (after first NEW_COMBO), colour 1 % 2 = 1
+    assert osu.hit_objects[1].combo_colour == 1
+    # Third object: combo index 2 (after second NEW_COMBO), colour 2 % 2 = 0
+    assert osu.hit_objects[2].combo_colour == 0
+
+
+def test_parse_combo_colour_with_skip():
+    content = """[General]
+
+[Colours]
+Combo1Colour:255,0,0
+Combo2Colour:0,255,0
+Combo3Colour:0,0,255
+
+[HitObjects]
+256,192,1000,5,0
+384,256,1500,21,0
+512,192,2000,5,0
+"""
+    osu = parse_osu_file(content)
+    assert len(osu.hit_objects) == 3
+    # First object: combo index 0, colour 0 % 3 = 0
+    assert osu.hit_objects[0].combo_colour == 0
+    # Second object: combo index 1 (after first NEW_COMBO), colour 1 % 3 = 1
+    assert osu.hit_objects[1].combo_colour == 1
+    # Third object: combo index 3 (after second NEW_COMBO + COLOUR_SKIP_1), colour 3 % 3 = 0
+    assert osu.hit_objects[2].combo_colour == 0
+
+
+def test_hit_object_type_flags():
+    """Verify the renamed HitObjectType flags."""
+    assert HitObjectType.COLOUR_SKIP_1 == 16
+    assert HitObjectType.COLOUR_SKIP_2 == 32
+    assert HitObjectType.COLOUR_SKIP_4 == 64
+    assert HitObjectType.MANIA_HOLD == 128
+
+
+def test_count_circles_and_sliders():
+    """Verify circle and slider counts for a pattern with mixed object types."""
+    content = """[General]
+
+[HitObjects]
+256,192,1000,5,0
+256,192,1500,6,0,L|100:100,1,100
+384,256,2000,5,0
+384,256,2500,6,0,L|500:300,1,100
+512,320,3000,5,0
+"""
+    osu = parse_osu_file(content)
+    assert osu.circle_count == 3
+    assert osu.slider_count == 2
+
+
+def test_count_only_circles():
+    """Verify count when only circles are present."""
+    content = """[General]
+
+[HitObjects]
+256,192,1000,5,0
+384,256,1500,5,0
+512,320,2000,5,0
+"""
+    osu = parse_osu_file(content)
+    assert osu.circle_count == 3
+    assert osu.slider_count == 0
+
+
+def test_count_only_sliders():
+    """Verify count when only sliders are present."""
+    content = """[General]
+
+[HitObjects]
+256,192,1000,6,0,L|100:100,1,100
+384,256,1500,6,0,L|500:300,2,200
+"""
+    osu = parse_osu_file(content)
+    assert osu.circle_count == 0
+    assert osu.slider_count == 2
+
+
+def test_count_with_spinners_excluded():
+    """Verify spinners are not counted in circle or slider counts."""
+    content = """[General]
+
+[HitObjects]
+256,192,1000,5,0
+256,192,1500,12,0,2000
+384,256,2000,5,0
+512,320,2500,12,0,3000
+"""
+    osu = parse_osu_file(content)
+    assert osu.circle_count == 2
+    assert osu.slider_count == 0
+    assert len(osu.hit_objects) == 4

@@ -32,6 +32,19 @@ class QFlowLayout(QLayout):
         h_spacing: int = -1,
         v_spacing: int = -1,
     ) -> None:
+        """Create the flow layout.
+
+        Parameters
+        ----------
+        parent:
+            The parent widget.
+        margin:
+            Uniform margin in pixels around the layout. Defaults to 4.
+        h_spacing:
+            Horizontal spacing between items in pixels, or ``-1`` for default.
+        v_spacing:
+            Vertical spacing between rows in pixels, or ``-1`` for default.
+        """
         super().__init__(parent)
 
         if margin is not None:
@@ -133,35 +146,44 @@ class QFlowLayout(QLayout):
             The available rectangle to lay items into.
         test_only:
             If ``True``, only compute positions without moving items.
+
+        Returns
+        -------
+        QRect
+            The rectangle occupied by the laid-out items.
         """
         margins = self.contentsMargins()
-        left, top, right, bottom = margins.left(), margins.top(), margins.right(), margins.bottom()
-        effective = rect.adjusted(left, top, -right, -bottom)
+        margin_left = margins.left()
+        margin_top = margins.top()
+        margin_right = margins.right()
+        margin_bottom = margins.bottom()
+        effective_rect = rect.adjusted(margin_left, margin_top, -margin_right, -margin_bottom)
 
-        x = effective.left()
-        y = effective.top()
+        cursor_x = effective_rect.left()
+        cursor_y = effective_rect.top()
 
         for item in self._items:
             widget = item.widget()
             if widget is not None:
-                spacing_h = self._h_spacing if self._h_spacing >= 0 else 0
-                spacing_v = self._v_spacing if self._v_spacing >= 0 else 0
+                h_spacing = self._h_spacing if self._h_spacing >= 0 else 0
+                v_spacing = self._v_spacing if self._v_spacing >= 0 else 0
             else:
-                spacing_h = self._h_spacing if self._h_spacing >= 0 else item.spacing()
-                spacing_v = self._v_spacing if self._v_spacing >= 0 else item.spacing()
+                h_spacing = self._h_spacing if self._h_spacing >= 0 else item.spacing()
+                v_spacing = self._v_spacing if self._v_spacing >= 0 else item.spacing()
 
-            next_x = x + item.sizeHint().width() + spacing_h
+            item_width = item.sizeHint().width()
+            next_x = cursor_x + item_width + h_spacing
 
-            if next_x - spacing_h > effective.right() and x > effective.left():
-                x = effective.left()
-                y += self._line_height + spacing_v
+            if next_x - h_spacing > effective_rect.right() and cursor_x > effective_rect.left():
+                cursor_x = effective_rect.left()
+                cursor_y += self._line_height + v_spacing
 
             if not test_only:
-                item.setGeometry(QRect(QPoint(x, y), item.sizeHint()))
+                item.setGeometry(QRect(QPoint(cursor_x, cursor_y), item.sizeHint()))
 
-            x += item.sizeHint().width() + spacing_h
+            cursor_x += item_width + h_spacing
 
-        return QRect(QPoint(effective.left(), y), QSize())
+        return QRect(QPoint(effective_rect.left(), cursor_y), QSize())
 
     @property
     def _line_height(self) -> int:

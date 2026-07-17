@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt
 
 from osu_gallery.db.database import GalleryDatabase
 from osu_gallery.parser.osu_file import parse_osu_file
-from osu_gallery.preview.thumbnail_renderer import render_thumbnail
+from osu_gallery.preview.thumbnail_renderer import render_pattern_preview, render_thumbnail
 from osu_gallery.ui.main_window import MainWindow
 
 SAMPLE_OSU = """[General]
@@ -19,26 +19,26 @@ SliderMultiplier: 1.4
 SliderTickRate: 1
 
 [HitObjects]
-256,192,1,2,0,80,0
-384,256,6,2,0,80,0,L|480:128,1,100
-512,192,1,2,0,80,0
+256,192,1000,5,0
+384,256,1500,6,0,L|480:128,1,100
+512,192,2000,5,0
 """
 
 CIRCLES_ONLY = """[General]
 AudioFilename: test.mp3
 
 [HitObjects]
-256,192,1,2,0,80,0
-384,256,1,2,0,80,0
-512,192,1,2,0,80,0
+256,192,1000,5,0
+384,256,1500,5,0
+512,192,2000,5,0
 """
 
 SLIDERS_ONLY = """[General]
 AudioFilename: test.mp3
 
 [HitObjects]
-256,192,2,2,0,0,0,L|480:128,1,100
-384,256,2,2,0,0,0,L|512:384,1,150
+256,192,1000,6,0,L|480:128,1,100
+384,256,1500,6,0,L|512:384,1,150
 """
 
 WITH_COMBO_COLORS = """[General]
@@ -49,9 +49,9 @@ Combo1Colour:255,0,0
 Combo2Colour:0,255,0
 
 [HitObjects]
-256,192,1,2,0,0,0
-384,256,6,2,0,1,0,L|480:128,1,100
-512,192,1,2,0,0,0
+256,192,1000,5,0
+384,256,1500,6,0,L|480:128,1,100
+512,192,2000,5,0
 """
 
 EMPTY_HIT_OBJECTS = """[General]
@@ -357,3 +357,59 @@ def test_multiple_patterns_different_thumbnails():
             break
 
     assert not pixels_identical, "Different hit object layouts should produce different thumbnails"
+
+
+def test_preview_aspect_ratio_4_3():
+    """Render preview at native osu! resolution, verify dimensions are 4:3 (512x384)."""
+    osu_file = parse_osu_file(CIRCLES_ONLY)
+    pixmap = render_pattern_preview(osu_file, width=512, height=384)
+
+    assert pixmap is not None
+    assert not pixmap.isNull()
+    assert pixmap.width() == 512, f"Expected width 512, got {pixmap.width()}"
+    assert pixmap.height() == 384, f"Expected height 384, got {pixmap.height()}"
+    assert pixmap.width() / pixmap.height() == 4 / 3, "Preview must be 4:3 aspect ratio"
+
+
+def test_preview_scaled_proportionally_to_pane_width():
+    """When preview is scaled to fit a 380px-wide pane, verify 4:3 ratio is preserved."""
+    osu_file = parse_osu_file(CIRCLES_ONLY)
+    pixmap = render_pattern_preview(osu_file, width=512, height=384)
+
+    pane_width = 380
+    expected_height = int(pane_width * 384 / 512)
+
+    scaled = pixmap.scaled(
+        pane_width,
+        expected_height,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+
+    assert scaled.width() == pane_width
+    assert scaled.width() / scaled.height() == 4 / 3, \
+        "Scaled preview must preserve 4:3 aspect ratio"
+
+
+def test_thumbnail_aspect_ratio_4_3():
+    """Render thumbnail at standard size, verify dimensions are 4:3 (200x150)."""
+    osu_file = parse_osu_file(CIRCLES_ONLY)
+    pixmap = render_thumbnail(osu_file, width=200, height=150)
+
+    assert pixmap is not None
+    assert not pixmap.isNull()
+    assert pixmap.width() == 200, f"Expected width 200, got {pixmap.width()}"
+    assert pixmap.height() == 150, f"Expected height 150, got {pixmap.height()}"
+    assert pixmap.width() / pixmap.height() == 4 / 3, "Thumbnail must be 4:3 aspect ratio"
+
+
+def test_thumbnail_different_sizes_preserve_ratio():
+    """Render thumbnails at various sizes, verify all maintain 4:3 ratio."""
+    osu_file = parse_osu_file(CIRCLES_ONLY)
+
+    sizes = [(100, 75), (200, 150), (400, 300), (512, 384)]
+    for w, h in sizes:
+        pixmap = render_thumbnail(osu_file, width=w, height=h)
+        assert pixmap.width() == w, f"Expected width {w}, got {pixmap.width()}"
+        assert pixmap.height() == h, f"Expected height {h}, got {pixmap.height()}"
+        assert pixmap.width() / pixmap.height() == 4 / 3, f"Size {w}x{h} must be 4:3"

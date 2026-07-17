@@ -6,6 +6,7 @@ relationship management via the PatternTag junction table.
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 import sys
@@ -54,12 +55,30 @@ class GalleryDatabase:
     """Manages the SQLite database for the osu gallery."""
 
     def __init__(self, db_path: str | Path) -> None:
+        """Open a connection to the SQLite database at db_path.
+
+        Args:
+            db_path: Path to the SQLite database file. The parent
+                directory is created if it does not exist.
+        """
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn: sqlite3.Connection | None = None
 
     @property
     def conn(self) -> sqlite3.Connection:
+        """Return the SQLite connection, creating it on first access.
+
+        The connection is configured with WAL journal mode and foreign
+        key enforcement. The database schema is created or migrated
+        lazily on first access.
+
+        Returns:
+            An active sqlite3.Connection.
+
+        Raises:
+            DatabaseError: If the connection or schema initialization fails.
+        """
         if self._conn is None:
             self._conn = sqlite3.connect(str(self.db_path))
             self._conn.row_factory = sqlite3.Row
@@ -69,12 +88,13 @@ class GalleryDatabase:
         return self._conn
 
     def close(self) -> None:
+        """Close the underlying SQLite connection if open."""
         if self._conn is not None:
             self._conn.close()
             self._conn = None
 
     def _init_schema(self) -> None:
-        """Create tables if they don't exist."""
+        """Create tables if they don't exist, and migrate existing tables."""
         self.conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS tag (
@@ -88,8 +108,17 @@ class GalleryDatabase:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 raw_code TEXT NOT NULL,
+                objects_only TEXT NOT NULL DEFAULT '',
                 object_count INTEGER NOT NULL DEFAULT 0,
-                timing_bpm REAL NOT NULL DEFAULT 0.0
+                circle_count INTEGER NOT NULL DEFAULT 0,
+                slider_count INTEGER NOT NULL DEFAULT 0,
+                timing_bpm REAL NOT NULL DEFAULT 0.0,
+                artist TEXT NOT NULL DEFAULT '',
+                title TEXT NOT NULL DEFAULT '',
+                mapper TEXT NOT NULL DEFAULT '',
+                mapping_tags TEXT NOT NULL DEFAULT '',
+                user_image BLOB,
+                user_image_filename TEXT NOT NULL DEFAULT ''
             );
 
             CREATE TABLE IF NOT EXISTS pattern_tag (
@@ -103,8 +132,60 @@ class GalleryDatabase:
 
             CREATE INDEX IF NOT EXISTS idx_pattern_tag_pattern_id
                 ON pattern_tag(pattern_id);
+
+            CREATE TABLE IF NOT EXISTS custom_mapping_tags (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tag_name TEXT NOT NULL UNIQUE,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
             """
         )
+        self._migrate_existing_schema()
+
+    def _column_exists(self, table: str, column: str) -> bool:
+        """Check if a column exists in a table."""
+        columns = self.conn.execute(f"PRAGMA table_info({table})").fetchall()
+        return any(col["name"] == column for col in columns)
+
+    def _migrate_existing_schema(self) -> None:
+        """Add new columns to existing tables for backward compatibility."""
+        if not self._column_exists("pattern", "circle_count"):
+            self.conn.execute(
+                "ALTER TABLE pattern ADD COLUMN circle_count INTEGER NOT NULL DEFAULT 0"
+            )
+        if not self._column_exists("pattern", "slider_count"):
+            self.conn.execute(
+                "ALTER TABLE pattern ADD COLUMN slider_count INTEGER NOT NULL DEFAULT 0"
+            )
+        if not self._column_exists("pattern", "objects_only"):
+            self.conn.execute(
+                "ALTER TABLE pattern ADD COLUMN objects_only TEXT NOT NULL DEFAULT ''"
+            )
+        if not self._column_exists("pattern", "artist"):
+            self.conn.execute(
+                "ALTER TABLE pattern ADD COLUMN artist TEXT NOT NULL DEFAULT ''"
+            )
+        if not self._column_exists("pattern", "title"):
+            self.conn.execute(
+                "ALTER TABLE pattern ADD COLUMN title TEXT NOT NULL DEFAULT ''"
+            )
+        if not self._column_exists("pattern", "mapper"):
+            self.conn.execute(
+                "ALTER TABLE pattern ADD COLUMN mapper TEXT NOT NULL DEFAULT ''"
+            )
+        if not self._column_exists("pattern", "mapping_tags"):
+            self.conn.execute(
+                "ALTER TABLE pattern ADD COLUMN mapping_tags TEXT NOT NULL DEFAULT ''"
+            )
+        if not self._column_exists("pattern", "user_image"):
+            self.conn.execute(
+                "ALTER TABLE pattern ADD COLUMN user_image BLOB"
+            )
+        if not self._column_exists("pattern", "user_image_filename"):
+            self.conn.execute(
+                "ALTER TABLE pattern ADD COLUMN user_image_filename TEXT NOT NULL DEFAULT ''"
+            )
 
     # -- Tag CRUD --
 
@@ -168,15 +249,32 @@ class GalleryDatabase:
     def create_pattern(
         self,
         raw_code: str,
+        objects_only: str = "",
         object_count: int = 0,
+        circle_count: int = 0,
+        slider_count: int = 0,
         timing_bpm: float = 0.0,
+        artist: str = "",
+        title: str = "",
+        mapper: str = "",
+        mapping_tags: str = "",
+        user_image: bytes = b"",
+        user_image_filename: str = "",
     ) -> Pattern:
         """Insert a new pattern and return it with its assigned id."""
         now = datetime.now(timezone.utc).isoformat()
         cursor = self.conn.execute(
-            "INSERT INTO pattern (created_at, updated_at, raw_code, object_count, timing_bpm) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (now, now, raw_code, object_count, timing_bpm),
+            "INSERT INTO pattern "
+            "(created_at, updated_at, raw_code, objects_only, object_count, "
+            "circle_count, slider_count, timing_bpm, artist, title, mapper, mapping_tags, "
+            "user_image, user_image_filename) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                now, now, raw_code, objects_only,
+                object_count, circle_count, slider_count, timing_bpm,
+                artist, title, mapper, mapping_tags,
+                user_image, user_image_filename,
+            ),
         )
         self.conn.commit()
         self._notify_search_sync()
@@ -185,14 +283,26 @@ class GalleryDatabase:
             created_at=datetime.fromisoformat(now),
             updated_at=datetime.fromisoformat(now),
             raw_code=raw_code,
+            objects_only=objects_only,
             object_count=object_count,
+            circle_count=circle_count,
+            slider_count=slider_count,
             timing_bpm=timing_bpm,
+            artist=artist,
+            title=title,
+            mapper=mapper,
+            mapping_tags=json.loads(mapping_tags) if mapping_tags else [],
+            user_image=user_image,
+            user_image_filename=user_image_filename,
         )
 
     def get_pattern(self, pattern_id: int) -> Pattern | None:
         """Return a pattern by id, or None if not found."""
         row = self.conn.execute(
-            "SELECT id, created_at, updated_at, raw_code, object_count, timing_bpm "
+            "SELECT id, created_at, updated_at, raw_code, objects_only, "
+            "object_count, circle_count, slider_count, timing_bpm, "
+            "artist, title, mapper, mapping_tags, "
+            "user_image, user_image_filename "
             "FROM pattern WHERE id = ?",
             (pattern_id,),
         ).fetchone()
@@ -203,15 +313,27 @@ class GalleryDatabase:
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),
             raw_code=row["raw_code"],
+            objects_only=row["objects_only"],
             object_count=row["object_count"],
+            circle_count=row["circle_count"],
+            slider_count=row["slider_count"],
             timing_bpm=row["timing_bpm"],
+            artist=row["artist"],
+            title=row["title"],
+            mapper=row["mapper"],
+            mapping_tags=json.loads(row["mapping_tags"]) if row["mapping_tags"] else [],
             tag_ids=self._get_pattern_tag_ids(row["id"]),
+            user_image=row["user_image"] if row["user_image"] is not None else b"",
+            user_image_filename=row["user_image_filename"] or "",
         )
 
     def get_all_patterns(self) -> list[Pattern]:
         """Return all patterns ordered by created_at descending."""
         rows = self.conn.execute(
-            "SELECT id, created_at, updated_at, raw_code, object_count, timing_bpm "
+            "SELECT id, created_at, updated_at, raw_code, objects_only, "
+            "object_count, circle_count, slider_count, timing_bpm, "
+            "artist, title, mapper, mapping_tags, "
+            "user_image, user_image_filename "
             "FROM pattern ORDER BY created_at DESC"
         ).fetchall()
         patterns: list[Pattern] = []
@@ -221,8 +343,17 @@ class GalleryDatabase:
                 created_at=datetime.fromisoformat(row["created_at"]),
                 updated_at=datetime.fromisoformat(row["updated_at"]),
                 raw_code=row["raw_code"],
+                objects_only=row["objects_only"],
                 object_count=row["object_count"],
+                circle_count=row["circle_count"],
+                slider_count=row["slider_count"],
                 timing_bpm=row["timing_bpm"],
+                artist=row["artist"],
+                title=row["title"],
+                mapper=row["mapper"],
+                mapping_tags=json.loads(row["mapping_tags"]) if row["mapping_tags"] else [],
+                user_image=row["user_image"] if row["user_image"] is not None else b"",
+                user_image_filename=row["user_image_filename"] or "",
             )
             p.tag_ids = self._get_pattern_tag_ids(row["id"])
             patterns.append(p)
@@ -231,14 +362,26 @@ class GalleryDatabase:
     def update_pattern(self, pattern: Pattern) -> None:
         """Update an existing pattern's data."""
         pattern.updated_at = datetime.now(timezone.utc)
+        mapping_tags_json = json.dumps(pattern.mapping_tags) if pattern.mapping_tags else ""
         self.conn.execute(
-            "UPDATE pattern SET updated_at = ?, raw_code = ?, object_count = ?, timing_bpm = ? "
-            "WHERE id = ?",
+            "UPDATE pattern SET updated_at = ?, raw_code = ?, objects_only = ?, "
+            "object_count = ?, circle_count = ?, slider_count = ?, "
+            "timing_bpm = ?, artist = ?, title = ?, mapper = ?, mapping_tags = ?, "
+            "user_image = ?, user_image_filename = ? WHERE id = ?",
             (
                 pattern.updated_at.isoformat(),
                 pattern.raw_code,
+                pattern.objects_only,
                 pattern.object_count,
+                pattern.circle_count,
+                pattern.slider_count,
                 pattern.timing_bpm,
+                pattern.artist,
+                pattern.title,
+                pattern.mapper,
+                mapping_tags_json,
+                pattern.user_image,
+                pattern.user_image_filename,
                 pattern.id,
             ),
         )
@@ -310,7 +453,10 @@ class GalleryDatabase:
     def get_patterns_by_tag(self, tag_id: int) -> list[Pattern]:
         """Return all patterns linked to a given tag."""
         rows = self.conn.execute(
-            "SELECT p.id, p.created_at, p.updated_at, p.raw_code, p.object_count, p.timing_bpm "
+            "SELECT p.id, p.created_at, p.updated_at, p.raw_code, p.objects_only, "
+            "p.object_count, p.circle_count, p.slider_count, p.timing_bpm, "
+            "p.artist, p.title, p.mapper, p.mapping_tags, "
+            "p.user_image, p.user_image_filename "
             "FROM pattern p "
             "JOIN pattern_tag pt ON pt.pattern_id = p.id "
             "WHERE pt.tag_id = ? "
@@ -324,8 +470,17 @@ class GalleryDatabase:
                 created_at=datetime.fromisoformat(row["created_at"]),
                 updated_at=datetime.fromisoformat(row["updated_at"]),
                 raw_code=row["raw_code"],
+                objects_only=row["objects_only"],
                 object_count=row["object_count"],
+                circle_count=row["circle_count"],
+                slider_count=row["slider_count"],
                 timing_bpm=row["timing_bpm"],
+                artist=row["artist"],
+                title=row["title"],
+                mapper=row["mapper"],
+                mapping_tags=json.loads(row["mapping_tags"]) if row["mapping_tags"] else [],
+                user_image=row["user_image"] if row["user_image"] is not None else b"",
+                user_image_filename=row["user_image_filename"] or "",
             )
             p.tag_ids = self._get_pattern_tag_ids(row["id"])
             patterns.append(p)
@@ -365,6 +520,22 @@ class GalleryDatabase:
             except Exception:
                 logger.debug("FTS5 sync failed", exc_info=True)
 
+    def update_pattern_user_image(
+        self, pattern_id: int, user_image: bytes, filename: str
+    ) -> None:
+        """Update a pattern's user image data.
+
+        Args:
+            pattern_id: The id of the pattern to update.
+            user_image: Resized image bytes (PNG format).
+            filename: Original filename for reference.
+        """
+        self.conn.execute(
+            "UPDATE pattern SET user_image = ?, user_image_filename = ? WHERE id = ?",
+            (user_image, filename, pattern_id),
+        )
+        self.conn.commit()
+
     def _notify_search_sync_remove(self, pattern_id: int) -> None:
         """Notify the search engine to remove a pattern from FTS5 index."""
         if _search_engine is not None:
@@ -372,3 +543,36 @@ class GalleryDatabase:
                 _search_engine.remove_from_fts(pattern_id)  # type: ignore[attr-defined]
             except Exception:
                 logger.debug("FTS5 sync failed", exc_info=True)
+
+    # -- Custom mapping tags --
+
+    def get_all_custom_tags(self) -> list[dict]:
+        """Return all custom mapping tags."""
+        rows = self.conn.execute(
+            "SELECT id, tag_name, enabled, created_at "
+            "FROM custom_mapping_tags ORDER BY tag_name"
+        ).fetchall()
+        return [
+            {"id": r["id"], "name": r["tag_name"], "enabled": bool(r["enabled"]),
+             "created_at": r["created_at"]}
+            for r in rows
+        ]
+
+    def add_custom_tag(self, name: str) -> bool:
+        """Add a custom mapping tag. Returns True on success, False on duplicate."""
+        try:
+            self.conn.execute(
+                "INSERT INTO custom_mapping_tags (tag_name) VALUES (?)", (name,)
+            )
+            self.conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def update_custom_tag_enabled(self, tag_id: int, enabled: bool) -> None:
+        """Update whether a custom tag is enabled."""
+        self.conn.execute(
+            "UPDATE custom_mapping_tags SET enabled = ? WHERE id = ?",
+            (1 if enabled else 0, tag_id)
+        )
+        self.conn.commit()

@@ -6,9 +6,10 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QStringListModel, Qt, QTimer, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
+    QCompleter,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -26,6 +27,7 @@ from osu_gallery.db.database import GalleryDatabase, get_data_dir, set_search_en
 from osu_gallery.db.models import Pattern
 from osu_gallery.search.engine import SearchEngine, SearchQuery
 from osu_gallery.ui._preview_pane import _PreviewPane
+from osu_gallery.ui._toast_widget import show_toast
 from osu_gallery.ui.import_dialog import ImportDialog
 from osu_gallery.ui.thumbnail_widget import _ThumbnailWidget
 
@@ -43,10 +45,18 @@ class _EmptyStateWidget(QWidget):
     """Centered message and import button for when the gallery is empty."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
+        """Create the empty-state widget.
+
+        Parameters
+        ----------
+        parent:
+            Optional parent widget.
+        """
         super().__init__(parent)
         self._setup_ui()
 
     def _setup_ui(self) -> None:
+        """Build the centered message label and import button."""
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -86,6 +96,16 @@ class MainWindow(QMainWindow):
         db_path: str | Path | None = None,
         parent: QWidget | None = None,
     ) -> None:
+        """Initialize the main window, database, and search engine.
+
+        Parameters
+        ----------
+        db_path:
+            Optional path to the SQLite database file. Defaults to the
+            application data directory.
+        parent:
+            Optional parent widget.
+        """
         super().__init__(parent)
         self.setWindowTitle("osu! Gallery")
         self.setMinimumSize(800, 600)
@@ -103,9 +123,15 @@ class MainWindow(QMainWindow):
         self._setup_ui()
         self._load_patterns()
 
+        self._completer = QCompleter([], self)
+        self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self._search_edit.setCompleter(self._completer)
+
     # -- UI construction --
 
     def _setup_ui(self) -> None:
+        """Construct the window layout: toolbar, splitter, grid, and preview pane."""
         central = QWidget()
         self.setCentralWidget(central)
 
@@ -120,12 +146,26 @@ class MainWindow(QMainWindow):
         self._search_edit.setPlaceholderText("Search patterns…")
         self._search_edit.setMinimumWidth(240)
         self._search_edit.textChanged.connect(self._on_search_text_changed)
+
+        self._search_button = QPushButton("Search")
+        self._search_button.setMinimumHeight(36)
+        self._search_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._search_button.clicked.connect(self._on_search_triggered)
+        toolbar.addWidget(self._search_button)
+
         toolbar.addWidget(self._search_edit, stretch=1)
+        self._search_edit.returnPressed.connect(self._on_search_triggered)
 
         self._import_button = QPushButton("Import Pattern")
         self._import_button.setMinimumHeight(36)
         self._import_button.setCursor(Qt.CursorShape.PointingHandCursor)
         toolbar.addWidget(self._import_button)
+
+        self._tags_button = QPushButton("Pattern Tags")
+        self._tags_button.setMinimumHeight(36)
+        self._tags_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._tags_button.clicked.connect(self._open_pattern_tags_dialog)
+        toolbar.addWidget(self._tags_button)
 
         main_layout.addLayout(toolbar)
 
@@ -176,8 +216,12 @@ class MainWindow(QMainWindow):
         self._refresh_grid(patterns)
 
     def _on_search_text_changed(self, text: str) -> None:
-        """Handle search bar text changes with debouncing."""
+        """Handle search bar text changes with debouncing and autocomplete."""
         self._search_timer.start()
+        # Update autocomplete suggestions
+        suggestions = self._search_engine.get_search_suggestions(text)
+        self._completer.setModel(QStringListModel(suggestions, self))
+        self._completer.complete()
 
     def _on_search_triggered(self) -> None:
         """Execute the search query and update the grid."""
@@ -202,12 +246,20 @@ class MainWindow(QMainWindow):
                 db=self._db,
             )
             widget.pattern_clicked.connect(self._on_pattern_clicked)
+            widget.pattern_deleted.connect(self._on_pattern_deleted)
             self._flow_layout.addWidget(widget)
 
         if patterns:
             self._page_stack.setCurrentWidget(self._page_stack.widget(0))
         else:
             self._page_stack.setCurrentWidget(self._page_stack.widget(1))
+
+    def _on_pattern_deleted(self, pattern_id: int) -> None:
+        """Delete a pattern from the database and refresh the grid."""
+        logger.info("Deleting pattern %d", pattern_id)
+        self._db.delete_pattern(pattern_id)
+        self.refresh()
+        show_toast("Pattern deleted", self)
 
     # -- Signal handlers --
 
@@ -217,6 +269,12 @@ class MainWindow(QMainWindow):
         dialog.finished.connect(self.refresh)
         dialog.exec()
 
+    def _open_pattern_tags_dialog(self) -> None:
+        """Open the Pattern Tags management dialog."""
+        from osu_gallery.ui._pattern_tags_dialog import PatternTagsDialog
+        dialog = PatternTagsDialog(db=self._db, parent=self)
+        dialog.exec()
+
     def _on_pattern_clicked(self, pattern_id: int) -> None:
         """Show the preview pane for the clicked pattern."""
         self._preview_pane.load_pattern(pattern_id)
@@ -224,7 +282,7 @@ class MainWindow(QMainWindow):
         # Make sure the preview pane is visible in the splitter
         sizes = self._splitter.sizes()
         if sizes[1] == 0:
-            default_width = 380
+            default_width = 500
             self._splitter.setSizes([sizes[0] - default_width, default_width])
 
     def _on_preview_closed(self) -> None:

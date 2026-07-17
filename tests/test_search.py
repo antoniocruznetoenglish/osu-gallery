@@ -16,26 +16,26 @@ Creator:TestMapper
 Tags:slider circle_pattern
 
 [HitObjects]
-256,192,1,2,0,80,0
-384,256,2,2,0,0,0,L|480:128,1,100
-512,192,1,2,0,80,0
+256,192,1000,1|2,0
+384,256,1500,2|2,0,L|480:128,1,100
+512,192,2000,1|2,0
 """
 
 CIRCLES_ONLY = """[General]
 AudioFilename: test.mp3
 
 [HitObjects]
-256,192,1,2,0,80,0
-384,256,1,2,0,80,0
-512,192,1,2,0,80,0
+256,192,1000,1|2,0
+384,256,1500,1|2,0
+512,192,2000,1|2,0
 """
 
 SLIDERS_ONLY = """[General]
 AudioFilename: test.mp3
 
 [HitObjects]
-256,192,2,2,0,0,0,L|480:128,1,100
-384,256,2,2,0,0,0,L|512:384,1,150
+256,192,1000,2|2,0,L|480:128,1,100
+384,256,1500,2|2,0,L|512:384,1,150
 """
 
 
@@ -76,12 +76,12 @@ def test_fts_sync_on_pattern_create(engine, db):
     db.add_tag_to_pattern(pattern.id, tag.id)
 
     row = db.conn.execute(
-        "SELECT pattern_id, raw_code, tags FROM pattern_fts WHERE pattern_id = ?",
+        "SELECT pattern_id, content FROM pattern_fts WHERE pattern_id = ?",
         (pattern.id,),
     ).fetchone()
     assert row is not None
     assert row["pattern_id"] == pattern.id
-    assert "slider" in row["tags"]
+    assert "slider" in row["content"]
 
 
 def test_fts_sync_on_pattern_delete(engine, db):

@@ -1,1 +1,1 @@
-# tests package
+"""Test suite for osu gallery."""

@@ -13,7 +13,7 @@ VALID_OSU = """[General]
 AudioFilename: test.mp3
 
 [HitObjects]
-256,192,1,2,0,80,0
+256,192,1000,5,0
 """
 
 INVALID_CODE = """[General]
@@ -32,18 +32,18 @@ Creator:TestMapper
 Tags:slider circle_pattern
 
 [HitObjects]
-256,192,1,2,0,80,0
-384,256,2,2,0,0,0,L|480:128,1,100
-512,192,1,2,0,80,0
+256,192,1000,5,0
+384,256,1500,6,0,L|480:128,1,100
+512,192,2000,5,0
 """
 
 CIRCLES_ONLY = """[General]
 AudioFilename: test.mp3
 
 [HitObjects]
-256,192,1,2,0,80,0
-384,256,1,2,0,80,0
-512,192,1,2,0,80,0
+256,192,1000,5,0
+384,256,1500,5,0
+512,192,2000,5,0
 """
 
 
@@ -199,7 +199,7 @@ def test_import_dialog_empty_input(qtbot, db):
 
 
 def test_import_dialog_auto_tags(qtbot, db):
-    """Verify tags are auto-extracted from parsed metadata."""
+    """Verify object counts are auto-detected; metadata no longer auto-tagged."""
     osu_with_tags = """[General]
 AudioFilename: test.mp3
 
@@ -209,7 +209,7 @@ Creator:TestMapper
 Tags:slider circle_pattern
 
 [HitObjects]
-256,192,1,2,0,80,0
+256,192,1000,6,0,L|100:100,1,100
 """
     dialog = ImportDialog(db=db)
     qtbot.addWidget(dialog)
@@ -224,9 +224,10 @@ Tags:slider circle_pattern
 
     tags = db.get_all_tags()
     tag_names = {t.name for t in tags}
-    assert "slider" in tag_names
-    assert "circle_pattern" in tag_names
-    assert "TestMapper" in tag_names
+    assert "1 sliders" in tag_names
+    assert "slider" not in tag_names
+    assert "circle_pattern" not in tag_names
+    assert "TestMapper" not in tag_names
 
 
 # -- Search bar integration tests --

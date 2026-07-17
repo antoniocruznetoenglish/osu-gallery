@@ -29,8 +29,8 @@ def test_constants_module_exists() -> None:
     assert APP_VERSION == "0.1.0"
     assert DB_FILENAME == "gallery.db"
     assert FONT_FAMILY == "Segoe UI"
-    assert PREVIEW_PANE_WIDTH == 380
-    assert THUMBNAIL_WIDGET_MIN_WIDTH == 160
+    assert PREVIEW_PANE_WIDTH == 500
+    assert THUMBNAIL_WIDGET_MIN_WIDTH == 512
     assert TOAST_DEFAULT_DURATION_MS == 1800
 
 

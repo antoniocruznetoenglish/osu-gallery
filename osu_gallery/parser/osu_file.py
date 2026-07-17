@@ -6,6 +6,7 @@ section which contains circles, sliders, and spinners.
 
 from __future__ import annotations
 
+import logging
 import re
 
 from osu_gallery.parser.models import (
@@ -23,6 +24,8 @@ from osu_gallery.parser.models import (
 
 class ParseError(Exception):
     """Raised when a .osu file cannot be parsed."""
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_slider_path(path_string: str) -> list[SliderPath]:
@@ -175,38 +178,36 @@ def _parse_slider_data(
 def _parse_hit_object(line: str) -> HitObject:
     """Parse a single hit object line from the [HitObjects] section.
 
-    Format:
-        X,Y,type,object_type,time,combo_colour,sound_index[,slider_data...]
+    Real osu! format:
+        x,y,time,type,hitSound,objectParams,hitSample
 
     Where:
-        X, Y: float coordinates
-        type: int bitmask (1=circle, 2=slider, 4=new combo, 8=spinner)
-        object_type: int bitmask (clap, finish, whistle, etc.)
+        x, y: float coordinates
         time: int milliseconds
-        combo_colour: int 0-6
-        sound_index: int
+        type: int bitmask (1=circle, 2=slider, 4=new combo, 8=spinner,
+            16=colour_skip_1, 32=colour_skip_2, 64=colour_skip_4, 128=mania_hold)
+        hitSound: int bitmask (clap, finish, whistle, etc.)
+        objectParams: varies by type (slider curve+slides+length, spinner endTime)
+        hitSample: optional colon-separated string (normalSet:additionSet:index:volume:filename)
     """
-    # For sliders, the path_data contains commas and pipes, so we can't
-    # simply split by commas. Instead, extract the first 7 fields manually,
-    # then parse the remainder based on object type.
-    # Use a regex to extract the first 7 comma-separated numeric fields.
+    # The first 5 fields are simple comma-separated values.
+    # After that, objectParams depends on the type and may contain commas/pipes.
+    # We extract the first 5 fields via regex, then parse the rest based on type.
     match = re.match(
-        r"^([\d.]+),([\d.]+),(\d+),(\d+),(\d+),(\d+),(\d+)(.*)$", line
+        r"^([\d.]+),([\d.]+),(\d+),(\d+),(\d+)(?:,(.*))?$", line
     )
     if not match:
         raise ParseError(f"Hit object line does not match expected format: {line!r}")
 
     x = float(match.group(1))
     y = float(match.group(2))
-    type_bitmask = int(match.group(3))
-    sound_types = int(match.group(4))
-    time = int(match.group(5))
-    combo_colour = int(match.group(6))
-    sound_index = int(match.group(7))
-    remainder = match.group(8).lstrip(",") if match.group(8) else ""
+    time = int(match.group(3))
+    type_bitmask = int(match.group(4))
+    hit_sound = int(match.group(5))
+    remainder = match.group(6) or ""
 
     hit_type = HitObjectType(type_bitmask)
-    object_sound = ObjectSound(sound_types)
+    object_sound = ObjectSound(hit_sound)
 
     hit_object = HitObject(
         x=x,
@@ -214,24 +215,34 @@ def _parse_hit_object(line: str) -> HitObject:
         type=hit_type,
         sound_types=object_sound,
         time=time,
-        combo_colour=combo_colour,
-        sound_index=sound_index,
+        combo_colour=0,
+        hit_sample="",
     )
 
     if hit_type & HitObjectType.SLIDER:
-        # Slider: remainder contains path_data followed by repeats,pixel_length and optional fields
+        # Slider objectParams: curveType|curvePoints,slides,length[,edgeSounds,edgeSets]
+        # We need to split carefully because curvePoints contain commas/pipes.
+        # Format: <curve>|<points>,<slides>,<length>[,<edgeSounds>,<edgeSets>]
         if not remainder:
-            raise ParseError(f"Slider missing path data: {line!r}")
+            raise ParseError(f"Slider missing object params: {line!r}")
 
-        # For MVP, handle simple slider format: path_data,repeats,pixel_length[,optional...]
-        # where path_data is L|X1,Y1|X2,Y2|... or B|X1,Y1,X2,Y2,X3,Y3|...
-        # Use a regex that matches: type_prefix|coordinates,repeats,pixel_length
-        # Match path_data (digits, colons, dots, pipes) followed by
-        # ,repeats,pixel_length and optional trailing fields.
-        # [LBCO]\| prefix + coordinate chars, then the numeric fields.
+        # Split remainder to extract edge sounds/additions if present.
+        # The slider params end with ,int,int[,int,int[,int,int[,int[,int]]]]
+        # Strategy: find the last occurrence of ,int,int pattern that marks edge sounds.
+        # For robustness, parse from the end.
+        edge_sounds_str = ""
+        edge_additions_str = ""
+        slider_body = remainder
+
+        # Try to extract trailing ,edgeSounds,edgeAdditions before the repeats,length part.
+        # Actually the format is: curve|points,slides,length[,edgeSounds,edgeAdditions]
+        # We need to find slides and length which are the first two comma-separated ints
+        # after the curve data. But curve data can contain commas in linear sliders.
+        #
+        # Robust approach: use regex to find the curve prefix, then parse the numeric tail.
         slider_match = re.match(
             r"^([LBCO]\|(?:[\d.:|]+)),(\d+),([\d.]+)(?:,(.*))?$",
-            remainder,
+            slider_body,
         )
         if not slider_match:
             raise ParseError(f"Slider path data malformed: {line!r}")
@@ -257,7 +268,6 @@ def _parse_hit_object(line: str) -> HitObject:
             opt_parts = optional_str.split(",")
             edge_sounds_str = opt_parts[0] if len(opt_parts) > 0 else ""
             edge_additions_str = opt_parts[1] if len(opt_parts) > 1 else ""
-            # opt_parts[2] is custom_audio_offset (skip)
             multiplier_str = opt_parts[3] if len(opt_parts) > 3 else "1"
             tick_rate_str = opt_parts[4] if len(opt_parts) > 4 else "1"
 
@@ -272,17 +282,148 @@ def _parse_hit_object(line: str) -> HitObject:
         )
 
     elif hit_type & HitObjectType.SPINNER:
-        # Spinner: end_time after sound_index
+        # Spinner objectParams: endTime
         if not remainder:
             raise ParseError(f"Spinner missing end time: {line!r}")
-        # The remainder starts with ',' followed by end_time
-        end_time_str = remainder.lstrip(",").split(",")[0]
+        end_time_str = remainder.split(",")[0]
         try:
             hit_object.spinner_end = int(end_time_str)
         except ValueError:
             raise ParseError(f"Spinner end time is not an integer: {end_time_str!r}") from None
 
+    elif hit_type & HitObjectType.MANIA_HOLD:
+        # Mania hold: endTime (stubbed for now)
+        if remainder:
+            end_time_str = remainder.split(",")[0]
+            try:
+                hit_object.spinner_end = int(end_time_str)
+            except ValueError:
+                logger.debug(
+                    "Mania hold end time not an integer, ignoring: %s", end_time_str
+                )
+
+    # Parse optional trailing hitSample (colon-separated)
+    # hitSample is appended after objectParams, separated by a comma.
+    # Format: normalSet:additionSet:index:volume:filename
+    # We need to check if there's a colon-separated string after the objectParams.
+    # For circles, remainder is just the hitSample (or empty).
+    is_circle = not (
+        hit_type & (HitObjectType.SLIDER | HitObjectType.SPINNER | HitObjectType.MANIA_HOLD)
+    )
+    if is_circle and remainder and ":" in remainder:
+        # Circle: remainder is just hitSample
+        hit_object.hit_sample = remainder
+
+    # Try to extract hitSample from the original line for all types.
+    # The hitSample is the last colon-separated field after all comma-separated params.
+    if not hit_object.hit_sample:
+        _hit_sample = _extract_hit_sample(line, hit_type)
+        if _hit_sample is not None:
+            hit_object.hit_sample = _hit_sample
+
     return hit_object
+
+
+def _extract_hit_sample(line: str, hit_type: HitObjectType) -> str | None:
+    """Extract the optional hitSample string from a hit object line.
+
+    Dispatches to type-specific extraction based on whether the object is a
+    circle (simple case) or slider/spinner/mania (complex case with objectParams).
+
+    Args:
+        line: The raw hit object line from the [HitObjects] section.
+        hit_type: The HitObjectType flag indicating circle, slider, spinner, or mania.
+
+    Returns:
+        The hitSample string if found, otherwise None.
+    """
+    if not line:
+        return None
+
+    # Find the position after the first 5 comma-separated fields.
+    match = re.match(
+        r"^([\d.]+),([\d.]+),(\d+),(\d+),(\d+)(?:,(.*))?$", line
+    )
+    if not match:
+        return None
+
+    remainder = match.group(6)
+    if not remainder:
+        return None
+
+    # Circles: remainder is the hitSample if it contains colons.
+    if not (hit_type & (HitObjectType.SLIDER | HitObjectType.SPINNER | HitObjectType.MANIA_HOLD)):
+        return _extract_hit_sample_for_circle(remainder)
+
+    # Sliders/spinners/mania: hitSample is after objectParams.
+    return _extract_hit_sample_for_complex(line)
+
+
+def _extract_hit_sample_for_circle(remainder: str) -> str | None:
+    """Extract hitSample from a circle hit object's remainder.
+
+    For circles, the remainder after the first 5 comma-separated fields
+    is the hitSample itself (a colon-separated string).
+
+    Args:
+        remainder: The text after the first 5 comma-separated fields.
+
+    Returns:
+        The hitSample string if it contains colons, otherwise None.
+    """
+    if ":" in remainder:
+        return remainder
+    return None
+
+
+def _extract_hit_sample_for_complex(line: str) -> str | None:
+    """Extract hitSample from slider/spinner/mania hit object lines.
+
+    Walks backwards through comma-separated parts to find the rightmost
+    colon-separated segment that matches the hitSample format (numeric
+    sets/index/volume fields separated by colons).
+
+    Args:
+        line: The raw hit object line.
+
+    Returns:
+        The hitSample string if found, otherwise None.
+    """
+    parts = line.split(",")
+    if len(parts) <= 5:
+        return None
+
+    # Walk backwards from the end to find the hitSample.
+    # The hitSample contains colons but no commas or slider-specific chars.
+    for i in range(len(parts) - 1, 4, -1):
+        part = parts[i]
+        if ":" in part and not any(c in part for c in "|.") and part.count(":") >= 1:
+            colon_parts = part.split(":")
+            if len(colon_parts) >= 2 and _looks_like_hit_sample(colon_parts):
+                return part
+
+    return None
+
+
+def _looks_like_hit_sample(colon_parts: list[str]) -> bool:
+    """Check if colon-separated parts match the hitSample format.
+
+    A valid hitSample has numeric sets/index/volume fields (non-empty parts
+    must be parseable as integers).
+
+    Args:
+        colon_parts: The parts split by colons.
+
+    Returns:
+        True if all non-empty parts are numeric.
+    """
+    for cp in colon_parts:
+        if cp:
+            try:
+                int(cp)
+            except ValueError:
+                return False
+    return True
 
 
 def _parse_ini_section(content: str, section: str) -> dict[str, str]:
@@ -352,6 +493,73 @@ def _safe_float(value: str | None, default: float) -> float:
         return float(value)
     except (ValueError, TypeError):
         return default
+
+
+def _parse_timing_points(content: str) -> float:
+    """Parse the [TimingPoints] section and compute BPM.
+
+    In osu!, timing points define the BPM. The first timing point typically
+    has a negative BPM value (e.g., -120 means 120 BPM). Subsequent timing
+    points can override the BPM. Returns the effective BPM, or 0.0 if not
+    found.
+
+    Timing points use the format:
+        offset,ms_per_beat,beatLength,metric,sampleSet,sampleVolume,inherits
+    """
+    timing_section = _extract_section(content, "TimingPoints")
+    if not timing_section:
+        return 0.0
+
+    bpm = 0.0
+    for line in timing_section.splitlines():
+        line = line.strip()
+        if not line or line.startswith("//") or line.startswith("#"):
+            continue
+
+        parts = line.split(",")
+        if len(parts) < 2:
+            continue
+
+        try:
+            ms_per_beat = float(parts[1])
+            if ms_per_beat < 0:
+                # Negative means BPM = 60000 / |ms_per_beat|
+                bpm = 60000.0 / abs(ms_per_beat)
+            elif ms_per_beat > 0:
+                # Positive means it's a speed multiplier, not a BPM override
+                pass
+        except (ValueError, ZeroDivisionError):
+            continue
+
+    return round(bpm, 2)
+
+
+def _extract_section(content: str, section: str) -> str:
+    """Extract the content of a specific section from .osu file content.
+
+    Returns the raw text between the section header and the next section
+    header (or end of file).
+
+    Args:
+        content: The raw .osu file content.
+        section: The section name to extract (e.g., "TimingPoints").
+
+    Returns:
+        The section content as a string, or empty string if not found.
+    """
+    pattern_str = r"^\[" + re.escape(section) + r"\]\s*$"
+    section_pattern = re.compile(pattern_str, re.MULTILINE | re.IGNORECASE)
+    next_section_pattern = re.compile(r"^\[[^\]]+\]\s*$", re.MULTILINE)
+
+    section_match = section_pattern.search(content)
+    if not section_match:
+        return ""
+
+    start = section_match.end()
+    remaining = content[start:]
+
+    next_match = next_section_pattern.search(remaining)
+    return remaining[:next_match.start()] if next_match else remaining
 
 
 def _parse_colours(raw: dict[str, str]) -> list[int]:
@@ -449,6 +657,12 @@ def parse_osu_file(content: str) -> OsuFile:
     # Parse [HitObjects] section (special format: lines without keys)
     osu.hit_objects = _parse_hit_objects_section(content)
 
+    # Resolve combo colours now that we know the colour count
+    osu.resolve_combo_colours()
+
+    # Parse [TimingPoints] section and compute BPM
+    osu.timing_bpm = _parse_timing_points(content)
+
     return osu
 
 
@@ -466,9 +680,11 @@ def _parse_hit_objects_section(content: str) -> list[HitObject]:
     """Parse the [HitObjects] section from raw file content.
 
     The HitObjects section in .osu files uses lines without keys:
-        X,Y,type,object_type,time,combo_colour,sound_index,...
+        x,y,time,type,hitSound,objectParams,hitSample
 
     We extract everything between [HitObjects] and the next section header.
+    Combo colours are derived from a running combo index based on the
+    NEW_COMBO flag and colour-skip bits (4-6) in the type bitmask.
     """
     objects: list[HitObject] = []
     section_pattern = re.compile(r"^\[HitObjects\]\s*$", re.MULTILINE | re.IGNORECASE)
@@ -484,6 +700,8 @@ def _parse_hit_objects_section(content: str) -> list[HitObject]:
     next_match = next_section_pattern.search(remaining)
     section_content = remaining[:next_match.start()] if next_match else remaining
 
+    # First pass: parse all objects to get raw combo indices.
+    raw_objects: list[HitObject] = []
     for line in section_content.splitlines():
         line = line.strip()
         if not line or line.startswith("//") or line.startswith("#"):
@@ -491,9 +709,30 @@ def _parse_hit_objects_section(content: str) -> list[HitObject]:
 
         try:
             obj = _parse_hit_object(line)
-            objects.append(obj)
+            raw_objects.append(obj)
         except ParseError:
-            # Skip malformed lines rather than failing the entire parse
             continue
+
+    # Second pass: compute combo colour from running combo index.
+    # Combo colour is 0-indexed. First object is always colour 0.
+    combo_index = 0
+    for obj in raw_objects:
+        # Assign current combo index before processing flags
+        obj._raw_combo_index = combo_index
+        obj.combo_order = combo_index + 1  # 1-based
+        type_val = int(obj.type)
+        # Check NEW_COMBO bit (bit 2, value 4)
+        if type_val & HitObjectType.NEW_COMBO:
+            combo_index += 1
+        # Check colour-skip bits (bits 4-6, values 16, 32, 64)
+        colour_skip = (type_val >> 4) & 0x7
+        if colour_skip:
+            combo_index += colour_skip
+
+    # Third pass: resolve combo_colour once we know the combo_colors list.
+    # We don't have access to combo_colors here, so store raw index.
+    # The OsuFile.combo_colors will be used later to resolve.
+    # For now, store the raw combo index on each object.
+    objects = raw_objects
 
     return objects

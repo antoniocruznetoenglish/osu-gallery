@@ -28,6 +28,17 @@ class _ToastWidget(QWidget):
         parent: QWidget | None = None,
         duration_ms: int = _DEFAULT_DURATION_MS,
     ) -> None:
+        """Create the toast widget.
+
+        Parameters
+        ----------
+        message:
+            The text to display.
+        parent:
+            The parent widget.
+        duration_ms:
+            How long the toast stays visible (including fade).
+        """
         super().__init__(parent)
         self._duration_ms = duration_ms
 
@@ -70,6 +81,7 @@ class _ToastWidget(QWidget):
         self._stay_timer.timeout.connect(self._start_fade_out)
 
     def _start_fade_out(self) -> None:
+        """Begin the fade-out animation."""
         self._fade_out.start()
 
     def show_at(self, parent: QWidget | None) -> None:

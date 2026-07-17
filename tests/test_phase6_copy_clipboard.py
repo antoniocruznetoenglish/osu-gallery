@@ -21,9 +21,9 @@ SliderMultiplier: 1.4
 SliderTickRate: 1
 
 [HitObjects]
-256,192,1,2,0,80,0
-384,256,2,2,0,0,0,L|480:128,1,100
-512,192,1,2,0,80,0
+256,192,1000,1|2,0
+384,256,1500,2|2,0,L|480:128,1,100
+512,192,2000,1|2,0
 """
 
 
@@ -52,7 +52,7 @@ def window(db):
 
 def test_copy_to_clipboard_sets_text(qtbot):
     """copy_to_clipboard puts text into the system clipboard."""
-    test_text = "256,192,1,2,0,80,0"
+    test_text = "256,192,1000,1|2,0"
     copy_to_clipboard(test_text)
 
     clipboard = QApplication.clipboard()
@@ -76,7 +76,7 @@ def test_copy_to_clipboard_empty_string(qtbot):
 
 def test_copy_to_clipboard_large_content(qtbot):
     """copy_to_clipboard handles large text content."""
-    large_text = "256,192,1,2,0,80,0\n" * 1000
+    large_text = "256,192,1000,1|2,0\n" * 1000
     copy_to_clipboard(large_text)
     assert QApplication.clipboard().text() == large_text
 
@@ -255,14 +255,14 @@ def test_e2e_copy_multiple_patterns_in_order(db):
 AudioFilename: a.mp3
 
 [HitObjects]
-100,100,1,2,0,80,0
+100,100,1000,5,0
 """
     p2_code = """[General]
 AudioFilename: b.mp3
 
 [HitObjects]
-200,200,1,2,0,80,0
-300,300,1,2,0,80,0
+200,200,1000,5,0
+300,300,1500,5,0
 """
     db.create_pattern(p1_code, object_count=1)
     db.create_pattern(p2_code, object_count=2)

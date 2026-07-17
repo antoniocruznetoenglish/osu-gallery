@@ -83,14 +83,14 @@ def test_tag_name_unique(db):
 
 def test_create_pattern(db):
     pattern = db.create_pattern(
-        raw_code="[HitObjects]\n256,192,1,2,0,80,0",
+        raw_code="[HitObjects]\n256,192,1000,1|2,0",
         object_count=1,
         timing_bpm=120.0,
     )
     assert pattern.id is not None
     assert pattern.object_count == 1
     assert pattern.timing_bpm == 120.0
-    assert pattern.raw_code == "[HitObjects]\n256,192,1,2,0,80,0"
+    assert pattern.raw_code == "[HitObjects]\n256,192,1000,1|2,0"
 
 
 def test_get_pattern(db):
@@ -135,6 +135,68 @@ def test_pattern_default_values(db):
     pattern = db.create_pattern(raw_code="minimal")
     assert pattern.object_count == 0
     assert pattern.timing_bpm == 0.0
+
+
+def test_create_pattern_with_circle_slider_counts(db):
+    pattern = db.create_pattern(
+        raw_code="test code",
+        object_count=5,
+        circle_count=3,
+        slider_count=2,
+        timing_bpm=120.0,
+    )
+    assert pattern.id is not None
+    assert pattern.circle_count == 3
+    assert pattern.slider_count == 2
+    assert pattern.object_count == 5
+
+
+def test_get_pattern_returns_circle_slider_counts(db):
+    created = db.create_pattern(
+        raw_code="test",
+        object_count=4,
+        circle_count=2,
+        slider_count=2,
+    )
+    fetched = db.get_pattern(created.id)
+    assert fetched is not None
+    assert fetched.circle_count == 2
+    assert fetched.slider_count == 2
+    assert fetched.object_count == 4
+
+
+def test_update_pattern_circle_slider_counts(db):
+    pattern = db.create_pattern(raw_code="old", object_count=1)
+    pattern.circle_count = 3
+    pattern.slider_count = 1
+    pattern.object_count = 4
+    db.update_pattern(pattern)
+    fetched = db.get_pattern(pattern.id)
+    assert fetched.circle_count == 3
+    assert fetched.slider_count == 1
+    assert fetched.object_count == 4
+
+
+def test_get_all_patterns_includes_circle_slider_counts(db):
+    db.create_pattern("p1", object_count=1, circle_count=1, slider_count=0)
+    db.create_pattern("p2", object_count=3, circle_count=1, slider_count=2)
+    patterns = db.get_all_patterns()
+    by_id = {p.id: p for p in patterns}
+    assert by_id[patterns[0].id].circle_count in (1, 1)
+    assert by_id[patterns[0].id].slider_count in (0, 2)
+
+
+def test_get_patterns_by_tag_includes_circle_slider_counts(db):
+    tag = db.create_tag("test_tag")
+    p1 = db.create_pattern("p1", object_count=2, circle_count=1, slider_count=1)
+    p2 = db.create_pattern("p2", object_count=1, circle_count=1, slider_count=0)
+    db.add_tag_to_pattern(p1.id, tag.id)
+    db.add_tag_to_pattern(p2.id, tag.id)
+    patterns = db.get_patterns_by_tag(tag.id)
+    assert len(patterns) == 2
+    for p in patterns:
+        assert hasattr(p, "circle_count")
+        assert hasattr(p, "slider_count")
 
 
 # -- Tag-Pattern relationships --

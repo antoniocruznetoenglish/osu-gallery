@@ -7,17 +7,17 @@ APP_VERSION = "0.1.0"
 DB_FILENAME = "gallery.db"
 
 # UI dimensions
-MIN_WINDOW_WIDTH = 800
+MIN_WINDOW_WIDTH = 1100
 MIN_WINDOW_HEIGHT = 600
 SEARCH_EDIT_MIN_WIDTH = 240
 SEARCH_DEBOUNCE_MS = 250
-PREVIEW_PANE_WIDTH = 380
-PREVIEW_PANE_MAX_WIDTH = 480
-PREVIEW_HEIGHT = 384
-THUMBNAIL_WIDTH = 200
-THUMBNAIL_HEIGHT = 150
-THUMBNAIL_WIDGET_MIN_WIDTH = 160
-THUMBNAIL_WIDGET_MIN_HEIGHT = 120
+PREVIEW_PANE_WIDTH = 500
+PREVIEW_PANE_MAX_WIDTH = 620
+PREVIEW_HEIGHT = 768
+THUMBNAIL_WIDTH = 512
+THUMBNAIL_HEIGHT = 384
+THUMBNAIL_WIDGET_MIN_WIDTH = 512
+THUMBNAIL_WIDGET_MIN_HEIGHT = 384
 IMPORT_DIALOG_MIN_WIDTH = 600
 IMPORT_DIALOG_MIN_HEIGHT = 500
 
@@ -41,4 +41,23 @@ FONT_SIZE_LABEL = 9
 FONT_SIZE_ERROR = 11
 
 # Splitter
-SPLITTER_PREVIEW_DEFAULT_WIDTH = 380
+SPLITTER_PREVIEW_DEFAULT_WIDTH = 500
+
+# Tag categories
+TAG_CATEGORY_METADATA = "metadata"
+TAG_CATEGORY_MAPPING = "mapping"
+
+# Mapping tag options (manual user input)
+MAPPING_TAG_OPTIONS: list[str] = [
+    "Circle", "Slider", "Circles", "Sliders",
+    "Slider art", "Kickslider", "Kicksliders",
+    "vertical slider", "horizontal slider",
+    "15\u00b0 angled pattern", "0\u00b0 angled pattern",
+    "full screen pattern", "compact pattern",
+    "3/4 slider", "3/4sliders",
+    "1/2 slider", "1/2 sliders",
+    "1/1 slider", "1/1 sliders",
+    "2 circles", "3 circles", "4 circles",
+    "circle triangle", "circle square", "circle pentagon", "circle hexagon",
+    "slider triangle", "slider square", "slider pentagon", "slider hexagon",
+]

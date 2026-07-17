@@ -59,7 +59,12 @@ Mirrors into `05_AI_Collaboration_Rules.md` Code Quality Rules and Definition of
 3. Logging goes through the project's established structured-logging setup — never raw `print`/`console.log` in committed code.
 4. Naming/casing convention and folder structure are fixed per project (§1 above) — don't improvise a new one mid-session.
 5. If a task seems to require violating one of these, stop and ask rather than silently deviating.
+6. Never soften a test assertion to tolerate a known bug — if a test path can raise, assert it does not and log the bug in the backlog's open items instead of wrapping the call in `try/except <Error>: pass`.
 
 ## 6. Local-Model-Specific Note
 
 A smaller local model under context pressure is the most likely source of a swallowed exception or a skipped docstring — it's optimizing for "make it run," not "make it maintainable." Feed it this doc's relevant section (not the whole file) alongside the code it's touching, and spot-check its diff against §5 before accepting it.
+
+## 7. Test Integrity
+
+A test must never `try/except <SpecificError>: pass` (or `pytest.raises` used as an "either is fine" escape hatch) around the exact code path the test claims to verify. If a call can legitimately raise, the test asserts it does *not*, and the underlying bug gets a line in the backlog's open items (§1 of `13_Bugfix_and_Refactor_Backlog.md`) instead of a pass-either-way assertion. An AI agent should be told explicitly not to "make the test pass" by loosening the assertion — the fix belongs in the code being tested, not the test.

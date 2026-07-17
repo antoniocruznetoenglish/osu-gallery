@@ -14,8 +14,10 @@ class HitObjectType(IntFlag):
     SLIDER = 2
     NEW_COMBO = 4
     SPINNER = 8
-    TABLET = 16
-    SPECIAL = 32
+    COLOUR_SKIP_1 = 16
+    COLOUR_SKIP_2 = 32
+    COLOUR_SKIP_4 = 64
+    MANIA_HOLD = 128
 
 
 class ObjectSound(IntFlag):
@@ -63,9 +65,11 @@ class HitObject:
     sound_types: ObjectSound
     time: int  # milliseconds
     combo_colour: int
-    sound_index: int
+    hit_sample: str = ""
     slider: SliderData | None = None
     spinner_end: int | None = None
+    _raw_combo_index: int | None = None
+    combo_order: int = 0
 
     @property
     def is_circle(self) -> bool:
@@ -148,3 +152,27 @@ class OsuFile:
     bird_eye_view_distance: float = 0.0
     timer: int = 0
     point_spacing: float = 3.0
+    timing_bpm: float = 0.0
+
+    def resolve_combo_colours(self) -> None:
+        """Resolve raw combo indices to actual combo colour values.
+
+        Must be called after combo_colors is populated (e.g., after parsing
+        the [Colours] section). Sets HitObject.combo_colour on each object.
+        """
+        colour_count = max(1, len(self.combo_colors))
+        for obj in self.hit_objects:
+            raw = obj._raw_combo_index
+            if raw is not None:
+                obj.combo_colour = raw % colour_count
+            obj._raw_combo_index = None
+
+    @property
+    def circle_count(self) -> int:
+        """Count of circle hit objects (excludes sliders, spinners, mania holds)."""
+        return sum(1 for obj in self.hit_objects if obj.is_circle)
+
+    @property
+    def slider_count(self) -> int:
+        """Count of slider hit objects (excludes circles, spinners, mania holds)."""
+        return sum(1 for obj in self.hit_objects if obj.is_slider)

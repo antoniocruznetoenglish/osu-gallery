@@ -34,8 +34,8 @@ class _PreviewPane(QWidget):
 
     closed = Signal()
 
-    _PANE_WIDTH = 380
-    _PREVIEW_HEIGHT = 384
+    _PANE_WIDTH = 500
+    _PREVIEW_HEIGHT = 768
     _LABEL_BG_ALPHA = 180
 
     def __init__(
@@ -46,6 +46,7 @@ class _PreviewPane(QWidget):
         super().__init__(parent)
         self._db = db
         self._current_pattern_id: int | None = None
+        self._current_preview_pattern_id: int | None = None
         self._pixmap: QPixmap | None = None
         self._osu_file = None
         self._tags: list[Tag] = []
@@ -60,6 +61,7 @@ class _PreviewPane(QWidget):
     # -- UI construction --
 
     def _setup_ui(self) -> None:
+        """Build the preview pane layout with header, close button, and scroll area."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(10)
@@ -127,6 +129,7 @@ class _PreviewPane(QWidget):
         self._tags = []
         self._combo_colors = []
         self._current_pattern_id = None
+        self._current_preview_pattern_id = None
 
     def load_pattern(self, pattern_id: int) -> None:
         """Load and display a pattern's preview and metadata."""
@@ -155,28 +158,40 @@ class _PreviewPane(QWidget):
 
         self._osu_file = osu_file
         self._combo_colors = osu_file.combo_colors
+        self._current_preview_pattern_id = pattern_id
 
-        try:
-            self._pixmap = render_pattern_preview(osu_file, width=512, height=384)
-        except (OSError, ValueError) as exc:
-            logger.exception(
-                "Failed to render preview for pattern %d: %s", pattern_id, exc
-            )
-            self._show_error_state("Failed to render preview")
-            return
+        # Check for user image first
+        if pattern.user_image:
+            pixmap = QPixmap()
+            if pixmap.loadFromData(pattern.user_image):
+                self._pixmap = pixmap
+            else:
+                logger.warning("Failed to load user image for pattern %d", pattern_id)
+                self._pixmap = render_pattern_preview(osu_file, width=1024, height=768)
+        else:
+            try:
+                self._pixmap = render_pattern_preview(osu_file, width=1024, height=768)
+            except (OSError, ValueError) as exc:
+                logger.exception(
+                    "Failed to render preview for pattern %d: %s", pattern_id, exc
+                )
+                self._show_error_state("Failed to render preview")
+                return
 
         self._render_content(pattern)
 
     def _render_content(self, pattern: Pattern) -> None:
         """Render the preview image and metadata into the content layout."""
-        # Preview image
+        # Preview image — rendered at 512×384 (4:3 osu! native resolution),
+        # scaled proportionally to fit within the pane width while preserving aspect ratio.
         preview_label = QLabel()
         preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        preview_label.setMinimumHeight(self._PREVIEW_HEIGHT)
 
+        available_width = self._PANE_WIDTH
+        scaled_height = int(available_width * self._PREVIEW_HEIGHT / 1024)
         scaled = self._pixmap.scaled(
-            512,
-            self._PREVIEW_HEIGHT,
+            available_width,
+            scaled_height,
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
@@ -195,7 +210,16 @@ class _PreviewPane(QWidget):
         # Object count and BPM
         info_row = QHBoxLayout()
 
-        count_label = QLabel(f"Objects: {pattern.object_count}")
+        if pattern.circle_count > 0 and pattern.slider_count > 0:
+            count_text = f"{pattern.circle_count} circles, {pattern.slider_count} sliders"
+        elif pattern.circle_count > 0:
+            count_text = f"{pattern.circle_count} circles"
+        elif pattern.slider_count > 0:
+            count_text = f"{pattern.slider_count} sliders"
+        else:
+            count_text = f"{pattern.object_count} objects"
+
+        count_label = QLabel(f"Objects: {count_text}")
         count_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
         count_label.setStyleSheet("color: rgb(200, 200, 200);")
         info_row.addWidget(count_label)
@@ -231,16 +255,21 @@ class _PreviewPane(QWidget):
             color_row.addStretch()
             meta_layout.addLayout(color_row)
 
-        # Tags
-        if self._tags:
-            tags_label = QLabel("Tags:")
-            tags_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
-            tags_label.setStyleSheet("color: rgb(200, 200, 200);")
-            meta_layout.addWidget(tags_label)
+        # Artist/Title/Mapper rows
+        if pattern.artist:
+            self._add_meta_row(meta_layout, "Artist:", pattern.artist)
+        if pattern.title:
+            self._add_meta_row(meta_layout, "Title:", pattern.title)
+        if pattern.mapper:
+            self._add_meta_row(meta_layout, "Mapper:", pattern.mapper)
 
-            for tag in self._tags:
-                tag_widget = _TagChip(tag=tag)
-                meta_layout.addWidget(tag_widget)
+        # User mapping tags
+        if pattern.mapping_tags:
+            self._render_mapping_tags(meta_layout, pattern.mapping_tags)
+
+        # Tags grouped by category
+        if self._tags:
+            self._render_tags(meta_layout)
 
         meta_layout.addStretch()
         self._content_layout.addWidget(meta_widget)
@@ -255,10 +284,99 @@ class _PreviewPane(QWidget):
         self._copy_button = QPushButton("Copy Code")
         self._copy_button.setMinimumHeight(36)
         self._copy_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._copy_button.clicked.connect(lambda: self._on_copy_code(pattern))
+        self._copy_button.clicked.connect(self._on_copy_code_clicked)
         self._content_layout.addWidget(self._copy_button)
 
         self._content_layout.addStretch()
+
+    def _add_meta_row(self, layout: QVBoxLayout, label: str, value: str) -> None:
+        """Add a metadata row with a bold label and regular value text.
+
+        Args:
+            layout: The layout to add the row to.
+            label: The label text (e.g., "Artist:").
+            value: The value text to display.
+        """
+        row = QHBoxLayout()
+        label_widget = QLabel(label)
+        label_widget.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
+        label_widget.setStyleSheet("color: rgb(180, 180, 180);")
+        row.addWidget(label_widget)
+
+        value_widget = QLabel(value)
+        value_widget.setFont(QFont("Segoe UI", 10))
+        value_widget.setStyleSheet("color: rgb(200, 200, 200);")
+        value_widget.setWordWrap(True)
+        row.addWidget(value_widget)
+
+        layout.addLayout(row)
+
+    def _render_mapping_tags(self, parent_layout: QVBoxLayout, tags: list[str]) -> None:
+        """Render user mapping tags as styled badges.
+
+        Displays user-selected mapping tags as dark badges with rounded corners.
+        Auto-detected tags (from parser) are shown separately with a lighter style.
+
+        Args:
+            parent_layout: The layout to add tag widgets to.
+            tags: The list of user mapping tag names.
+        """
+        header = QLabel("Mapping Tags:")
+        header.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
+        header.setStyleSheet("color: rgb(180, 180, 180);")
+        parent_layout.addWidget(header)
+
+        tags_layout = QHBoxLayout()
+        tags_layout.setSpacing(4)
+
+        for tag in tags:
+            badge = QLabel(tag)
+            badge.setStyleSheet("""
+                background-color: #2a2a4a;
+                color: #e0e0e0;
+                border: 1px solid #4a4a6a;
+                border-radius: 10px;
+                padding: 2px 8px;
+                margin: 2px;
+            """)
+            badge.setFont(QFont("Segoe UI", 9))
+            tags_layout.addWidget(badge)
+
+        parent_layout.addLayout(tags_layout)
+
+    def _render_tags(self, parent_layout: QVBoxLayout) -> None:
+        """Render tags grouped by category (metadata vs mapping).
+
+        Groups tags into metadata tags (.osu file tags like artist, genre)
+        and mapping tags (auto-detected from hit objects like circle count,
+        slider type). Tags with other categories are displayed under a
+        general "Tags" section. Each group gets its own section header.
+
+        Args:
+            parent_layout: The layout to add tag widgets to.
+        """
+        mapping_tags = [t for t in self._tags if t.category == "mapping"]
+        other_tags = [t for t in self._tags if t.category not in ("metadata", "mapping")]
+
+        if mapping_tags:
+            map_label = QLabel("Mapping:")
+            map_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
+            map_label.setStyleSheet("color: rgb(180, 180, 180);")
+            parent_layout.addWidget(map_label)
+
+            for tag in mapping_tags:
+                tag_widget = _TagChip(tag=tag)
+                parent_layout.addWidget(tag_widget)
+
+        if other_tags:
+            other_label = QLabel("Tags:")
+            other_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
+            other_label.setStyleSheet("color: rgb(180, 180, 180);")
+            parent_layout.addWidget(other_label)
+
+            for tag in other_tags:
+                tag_widget = _TagChip(tag=tag)
+                parent_layout.addWidget(tag_widget)
 
     def _show_error_state(self, message: str) -> None:
         """Show an error message in the preview pane."""
@@ -279,6 +397,7 @@ class _PreviewPane(QWidget):
     # -- Styling --
 
     def _apply_style(self) -> None:
+        """Apply the dark theme stylesheet to the preview pane and its child widgets."""
         self.setStyleSheet(
             """
             QWidget#previewPane {
@@ -315,20 +434,45 @@ class _PreviewPane(QWidget):
         self.closed.emit()
 
     def _on_copy_code(self, pattern: Pattern) -> None:
-        """Copy the pattern's raw code to clipboard."""
-        copy_to_clipboard(pattern.raw_code, self)
+        """Copy the pattern's object lines to clipboard.
+
+        Uses objects_only if available, falling back to raw_code for
+        patterns imported before this field was added.
+        """
+        text = pattern.objects_only if pattern.objects_only else pattern.raw_code
+        copy_to_clipboard(text, self)
+
+    def _on_copy_code_by_id(self, pattern_id: int) -> None:
+        """Copy a pattern's object lines to clipboard by its id.
+
+        Looks up the pattern from the database, then delegates to
+        _on_copy_code.
+        """
+        pattern = self._db.get_pattern(pattern_id)
+        if pattern is None:
+            logger.warning("Cannot copy: pattern %d not found", pattern_id)
+            return
+        self._on_copy_code(pattern)
+
+    def _on_copy_code_clicked(self) -> None:
+        """Handle copy button click using the currently displayed pattern."""
+        if self._current_preview_pattern_id is None:
+            return
+        self._on_copy_code_by_id(self._current_preview_pattern_id)
 
 
 class _TagChip(QWidget):
     """A small chip-style widget displaying a tag name."""
 
     def __init__(self, tag: Tag, parent: QWidget | None = None) -> None:
+        """Create a tag chip displaying the given tag's name."""
         super().__init__(parent)
         self._tag = tag
         self.setMinimumHeight(24)
         self._setup_ui()
 
     def _setup_ui(self) -> None:
+        """Build the chip layout: tag name label on the left, stretch on the right."""
         layout = QHBoxLayout(self)
         layout.setContentsMargins(6, 2, 6, 2)
         layout.setSpacing(4)

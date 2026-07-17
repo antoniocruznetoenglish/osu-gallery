@@ -6,7 +6,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap
+from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QPixmap
 
 if TYPE_CHECKING:
     from osu_gallery.parser.models import OsuFile
@@ -128,6 +128,46 @@ def _draw_slider_path(
                 prev_px = (curr_px, curr_py)
 
 
+def _draw_combo_number(
+    painter: QPainter,
+    x: float,
+    y: float,
+    order: int,
+    color: QColor,
+    radius: float = 0.0,
+) -> None:
+    """Draw a small white number label on a hit object.
+
+    Draws a dark circle with a white number centered on it, positioned
+    just above (x, y) to sit at the top of the hit circle. Used to show
+    combo order on hit objects.
+
+    Args:
+        painter: The QPainter to draw on.
+        x: X coordinate in pixel space.
+        y: Y coordinate in pixel space.
+        order: The 1-based combo order number to display.
+        color: The combo color for the circle background.
+        radius: Rendered circle radius in pixels. Skips drawing if < 10.
+    """
+    if radius < 10:
+        logger.debug(
+            "Skipping combo number %d: radius %.1f is below minimum threshold of 10",
+            order,
+            radius,
+        )
+        return
+
+    font_size = max(7, min(14, int(radius * 0.4)))
+    painter.setPen(QPen(QColor(0, 0, 0, 220), 1.5))
+    painter.setBrush(QBrush(QColor(255, 255, 255)))
+    painter.setFont(QFont("Segoe UI", font_size, QFont.Weight.Bold))
+    text_rect = QRectF(x - font_size, y - font_size * 1.2, font_size * 2, font_size * 2.4)
+    painter.drawEllipse(text_rect)
+    painter.setPen(QColor(0, 0, 0))
+    painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, str(order))
+
+
 def _render_objects(
     painter: QPainter,
     osu_file: OsuFile,
@@ -147,10 +187,14 @@ def _render_objects(
         if obj.is_circle:
             px, py = _map_coords(obj.x, obj.y, scale_x, scale_y, offset_x, offset_y)
             _draw_circle(painter, px, py, circle_size, color)
+            if obj.combo_order > 0:
+                _draw_combo_number(painter, px, py, obj.combo_order, color, circle_size)
 
         elif obj.is_slider:
             px, py = _map_coords(obj.x, obj.y, scale_x, scale_y, offset_x, offset_y)
             _draw_circle(painter, px, py, circle_size, color)
+            if obj.combo_order > 0:
+                _draw_combo_number(painter, px, py, obj.combo_order, color, circle_size)
             if obj.slider is not None:
                 _draw_slider_path(
                     painter,
@@ -179,8 +223,8 @@ def _render_objects(
 
 def render_thumbnail(
     osu_file: OsuFile,
-    width: int = 200,
-    height: int = 150,
+    width: int = 512,
+    height: int = 384,
 ) -> QPixmap:
     """Render a scaled thumbnail of the osu! beatmap.
 
@@ -216,8 +260,8 @@ def render_thumbnail(
 
 def render_pattern_preview(
     osu_file: OsuFile,
-    width: int = 512,
-    height: int = 384,
+    width: int = 1024,
+    height: int = 768,
 ) -> QPixmap:
     """Render a full-resolution pattern preview of the osu! beatmap.
 

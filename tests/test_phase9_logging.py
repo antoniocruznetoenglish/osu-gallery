@@ -5,7 +5,8 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from unittest import mock
+
+import pytest
 
 # ---------------------------------------------------------------------------
 # Logging tests
@@ -132,55 +133,63 @@ def test_show_fatal_error_exists() -> None:
     assert callable(_show_fatal_error)
 
 
-def test_main_catches_import_error() -> None:
+def test_main_catches_import_error(monkeypatch) -> None:
     """main() catches ImportError and exits with code 1."""
     from osu_gallery.__main__ import main
 
-    with (
-        mock.patch("sys.exit") as mock_exit,
-        mock.patch("osu_gallery.__main__._show_fatal_error"),
-        mock.patch(
-            "PySide6.QtWidgets.QApplication",
-            side_effect=ImportError("No module named 'PySide6'"),
-        ),
-    ):
+    monkeypatch.setattr("sys.exit", lambda code: (_ for _ in ()).throw(SystemExit(code)))
+    monkeypatch.setattr("osu_gallery.__main__._show_fatal_error", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        "PySide6.QtWidgets.QApplication",
+        _MockQApplication(ImportError("No module named 'PySide6'")),
+    )
+
+    with pytest.raises(SystemExit):
         main()
 
-    mock_exit.assert_called_once_with(1)
 
-
-def test_main_catches_os_error() -> None:
+def test_main_catches_os_error(monkeypatch) -> None:
     """main() catches OSError and exits with code 1."""
     from osu_gallery.__main__ import main
 
-    with (
-        mock.patch("sys.exit") as mock_exit,
-        mock.patch("osu_gallery.__main__._show_fatal_error"),
-        mock.patch(
-            "PySide6.QtWidgets.QApplication",
-            side_effect=OSError("Cannot load Qt platform plugin"),
-        ),
-    ):
+    monkeypatch.setattr("sys.exit", lambda code: (_ for _ in ()).throw(SystemExit(code)))
+    monkeypatch.setattr("osu_gallery.__main__._show_fatal_error", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        "PySide6.QtWidgets.QApplication",
+        _MockQApplication(OSError("Cannot load Qt platform plugin")),
+    )
+
+    with pytest.raises(SystemExit):
         main()
 
-    mock_exit.assert_called_once_with(1)
 
-
-def test_main_catches_generic_exception() -> None:
+def test_main_catches_generic_exception(monkeypatch) -> None:
     """main() catches unexpected exceptions and exits with code 1."""
     from osu_gallery.__main__ import main
 
-    with (
-        mock.patch("sys.exit") as mock_exit,
-        mock.patch("osu_gallery.__main__._show_fatal_error"),
-        mock.patch(
-            "PySide6.QtWidgets.QApplication",
-            side_effect=ValueError("something went wrong"),
-        ),
-    ):
+    monkeypatch.setattr("sys.exit", lambda code: (_ for _ in ()).throw(SystemExit(code)))
+    monkeypatch.setattr("osu_gallery.__main__._show_fatal_error", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        "PySide6.QtWidgets.QApplication",
+        _MockQApplication(ValueError("something went wrong")),
+    )
+
+    with pytest.raises(SystemExit):
         main()
 
-    mock_exit.assert_called_once_with(1)
+
+class _MockQApplication:
+    """A mock for QApplication that raises a specific exception on instantiation."""
+
+    def __init__(self, exception: Exception) -> None:
+        self._exception = exception
+
+    def __call__(self, *args: object, **kwargs: object) -> None:
+        raise self._exception
+
+    @staticmethod
+    def instance() -> None:
+        return None
 
 
 # ---------------------------------------------------------------------------

@@ -1,10 +1,10 @@
 # Changelog: osu gallery
 
-> Tracks releases of the actual software â€” distinct from `06_Decision_Log.md` (why architectural choices were made) and `04_Implementation_Roadmap.md` (when work happened). This is: what shipped, in what version, when.
+> Tracks releases of the actual software — distinct from `06_Decision_Log.md` (why architectural choices were made) and `04_Implementation_Roadmap.md` (when work happened). This is: what shipped, in what version, when.
 
-Format loosely follows [Keep a Changelog](https://keepachangelog.com/) â€” Added / Changed / Fixed / Removed / Security, newest on top.
+Format loosely follows [Keep a Changelog](https://keepachangelog.com/) — Added / Changed / Fixed / Removed / Security, newest on top.
 
-**Versioning:** [state your scheme â€” e.g., semantic versioning MAJOR.MINOR.PATCH; for a solo/homelab tool, even a simple date-based version like `2026.07.12` is fine, just say which]
+**Versioning:** [state your scheme — e.g., semantic versioning MAJOR.MINOR.PATCH; for a solo/homelab tool, even a simple date-based version like `2026.07.12` is fine, just say which]
 
 ---
 
@@ -45,6 +45,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/) â€” 
 - Resolved relative `gallery.db` path to use `get_data_dir()` for correct behavior in frozen apps
 
 ### Fixed
+- `QPixmap.save()` crashing with `TypeError` when saving to `bytearray` — now uses `QBuffer`/`QByteArray` (`preview/image_resizer.py`)
+- Import dialog hanging silently when image attachment fails — now catches `TypeError`/`Exception` and shows warning (`ui/import_dialog.py`)
+- Thumbnail widget always rendering at 200×150 despite 512×384 internal render — now uses `THUMBNAIL_WIDGET_MIN_WIDTH/HEIGHT` constants (512×384) with `sizeHint()` override (`ui/thumbnail_widget.py`, `_constants.py`)
+- Preview pane cramped on small windows — raised `MIN_WINDOW_WIDTH` from 800 to 1100 (`_constants.py`)
+- Search bar with no visible button and non-functional Enter key — added `QPushButton("Search")` and `returnPressed` connection (`ui/main_window.py`)
+- `get_all_patterns()` and `get_patterns_by_tag()` not populating `mapping_tags` — added column to SELECT and `json.loads()` into `Pattern` (`db/database.py`)
 - Slider path regex that failed for standard osu! format with comma-separated coordinates in path data
 
 ---
@@ -57,6 +63,6 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/) â€” 
 <!--
 Copy the [Unreleased] block pattern for each new version when you cut one.
 A "Security" subsection is worth adding explicitly (not folding into "Fixed")
-whenever a change closes a real vulnerability â€” it's the kind of line future-you
+whenever a change closes a real vulnerability — it's the kind of line future-you
 or an auditor will specifically grep for.
 -->
