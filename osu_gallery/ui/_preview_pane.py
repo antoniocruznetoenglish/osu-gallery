@@ -167,10 +167,10 @@ class _PreviewPane(QWidget):
                 self._pixmap = pixmap
             else:
                 logger.warning("Failed to load user image for pattern %d", pattern_id)
-                self._pixmap = render_pattern_preview(osu_file, width=1024, height=768)
+                self._pixmap = render_pattern_preview(osu_file, width=1536, height=1152)
         else:
             try:
-                self._pixmap = render_pattern_preview(osu_file, width=1024, height=768)
+                self._pixmap = render_pattern_preview(osu_file, width=1536, height=1152)
             except (OSError, ValueError) as exc:
                 logger.exception(
                     "Failed to render preview for pattern %d: %s", pattern_id, exc
@@ -182,13 +182,13 @@ class _PreviewPane(QWidget):
 
     def _render_content(self, pattern: Pattern) -> None:
         """Render the preview image and metadata into the content layout."""
-        # Preview image — rendered at 512×384 (4:3 osu! native resolution),
+        # Preview image — rendered at 1536×1152 (4:3, 3x osu! native),
         # scaled proportionally to fit within the pane width while preserving aspect ratio.
         preview_label = QLabel()
         preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         available_width = self._PANE_WIDTH
-        scaled_height = int(available_width * self._PREVIEW_HEIGHT / 1024)
+        scaled_height = int(available_width * self._PREVIEW_HEIGHT / 1536)
         scaled = self._pixmap.scaled(
             available_width,
             scaled_height,

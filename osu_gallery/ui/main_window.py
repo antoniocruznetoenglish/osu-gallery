@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from osu_gallery._constants import DB_FILENAME
+from osu_gallery._constants import DB_FILENAME, MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT
 from osu_gallery.db.database import GalleryDatabase, get_data_dir, set_search_engine
 from osu_gallery.db.models import Pattern
 from osu_gallery.search.engine import SearchEngine, SearchQuery
@@ -108,7 +108,7 @@ class MainWindow(QMainWindow):
         """
         super().__init__(parent)
         self.setWindowTitle("osu! Gallery")
-        self.setMinimumSize(800, 600)
+        self.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
         db_path = Path(db_path) if db_path else get_data_dir() / DB_FILENAME
         self._db = GalleryDatabase(db_path)
@@ -201,7 +201,8 @@ class MainWindow(QMainWindow):
         self._splitter.addWidget(self._preview_pane)
 
         # Set splitter sizes: left gets all space, right starts collapsed
-        self._splitter.setSizes([800, 0])
+        initial_width = max(800, self.minimumSize().width())
+        self._splitter.setSizes([initial_width, 0])
         self._splitter.setStretchFactor(0, 1)
         self._splitter.setStretchFactor(1, 0)
 
@@ -279,11 +280,12 @@ class MainWindow(QMainWindow):
         """Show the preview pane for the clicked pattern."""
         self._preview_pane.load_pattern(pattern_id)
 
-        # Make sure the preview pane is visible in the splitter
+        # Make sure the preview pane is visible in the splitter — use 50% of available width
         sizes = self._splitter.sizes()
         if sizes[1] == 0:
-            default_width = 500
-            self._splitter.setSizes([sizes[0] - default_width, default_width])
+            total_width = sizes[0]
+            preview_width = total_width // 2
+            self._splitter.setSizes([total_width - preview_width, preview_width])
 
     def _on_preview_closed(self) -> None:
         """Handle the preview pane being closed — collapse the right side."""

@@ -123,6 +123,27 @@ class ImportDialog(QDialog):
                 col = 0
                 row += 1
 
+        custom_tags = self.db.get_all_custom_tags()
+        if custom_tags:
+            custom_header = QLabel("Custom Tags:")
+            custom_header.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+            self._grid.addWidget(custom_header, row, 0, 1, 2)
+            row += 1
+
+            for tag in custom_tags:
+                if not tag.get("enabled", True):
+                    continue
+                cb = QCheckBox(f"{tag['name']} (custom)")
+                cb.setFont(QFont("Segoe UI", 9))
+                cb.setProperty("tag_id", tag["id"])
+                cb.setProperty("is_custom", True)
+                self._grid.addWidget(cb, row, col)
+                self._checkboxes.append((cb, tag["name"]))
+                col += 1
+                if col >= 2:
+                    col = 0
+                    row += 1
+
         self._tags_scroll.setWidget(tags_widget)
         layout.addWidget(self._tags_scroll, 2, 0, 1, 2)
 
@@ -237,6 +258,18 @@ class ImportDialog(QDialog):
             self._show_error(f"Database error linking tags: {err}")
             return
 
+        # Persist any new custom tags that were selected but don't exist in DB
+        try:
+            for cb, tag_name in self._checkboxes:
+                if cb.isChecked() and cb.property("is_custom"):
+                    clean_name = tag_name.replace(" (custom)", "")
+                    existing = self.db.get_tag_by_name(clean_name)
+                    if existing is None:
+                        self.db.add_custom_tag(clean_name)
+                        logger.info("Added new custom tag: %s", clean_name)
+        except Exception as persist_err:
+            logger.warning("Failed to persist custom tag: %s", persist_err)
+
         # Handle user image
         try:
             user_image_bytes = self._get_selected_image_bytes()
@@ -310,11 +343,13 @@ class ImportDialog(QDialog):
 
         Returns:
             A list of tag name strings corresponding to checked checkboxes.
+            Custom tag checkboxes have the " (custom)" suffix stripped.
         """
         selected: list[str] = []
         for cb, tag_name in self._checkboxes:
             if cb.isChecked():
-                selected.append(tag_name)
+                clean_name = tag_name.replace(" (custom)", "")
+                selected.append(clean_name)
         return selected
 
     def _on_select_all(self) -> None:

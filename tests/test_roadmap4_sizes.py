@@ -56,8 +56,8 @@ AudioFilename: test.mp3
 
 def test_thumbnail_widget_paints_at_rendered_size():
     """Thumbnail widget minimum size matches THUMBNAIL_WIDGET_MIN constants."""
-    assert THUMBNAIL_WIDGET_MIN_WIDTH == 512
-    assert THUMBNAIL_WIDGET_MIN_HEIGHT == 384
+    assert THUMBNAIL_WIDGET_MIN_WIDTH == 220
+    assert THUMBNAIL_WIDGET_MIN_HEIGHT == 165
 
 
 def test_preview_pane_scales_correctly():

@@ -43,8 +43,8 @@ def test_splitter_default_width_is_500():
 
 def test_thumbnail_widget_min_size():
     """Thumbnail widget minimum size matches render size."""
-    assert THUMBNAIL_WIDGET_MIN_WIDTH == 512
-    assert THUMBNAIL_WIDGET_MIN_HEIGHT == 384
+    assert THUMBNAIL_WIDGET_MIN_WIDTH == 220
+    assert THUMBNAIL_WIDGET_MIN_HEIGHT == 165
 
 
 def test_render_thumbnail_returns_correct_size():
