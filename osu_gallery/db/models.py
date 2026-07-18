@@ -34,10 +34,13 @@ class Pattern:
     circle_count: int = 0
     slider_count: int = 0
     timing_bpm: float = 0.0
+    timing_bpm_min: float = 0.0
+    timing_bpm_max: float = 0.0
     artist: str = ""
     title: str = ""
     mapper: str = ""
     mapping_tags: list[str] = field(default_factory=list)
     tag_ids: list[int] = field(default_factory=list)
     user_image: bytes = b""
+    user_image_preview: bytes = b""
     user_image_filename: str = ""

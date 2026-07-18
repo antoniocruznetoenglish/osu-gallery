@@ -31,7 +31,7 @@ from osu_gallery.db.database import DatabaseError, GalleryDatabase
 from osu_gallery.db.models import Pattern
 from osu_gallery.parser.models import OsuFile
 from osu_gallery.parser.osu_file import ParseError, parse_osu_file
-from osu_gallery.preview.image_resizer import resize_image_for_thumbnail
+from osu_gallery.preview.image_resizer import resize_image_for_preview, resize_image_for_thumbnail
 from osu_gallery.tags import TAG_CATEGORY_MAPPING, TAG_CATEGORY_METADATA
 from osu_gallery.tags.mapping_tags import detect_object_tags
 
@@ -224,6 +224,8 @@ class ImportDialog(QDialog):
                 circle_count=osu_file.circle_count,
                 slider_count=osu_file.slider_count,
                 timing_bpm=osu_file.timing_bpm,
+                timing_bpm_min=osu_file.bpm_min,
+                timing_bpm_max=osu_file.bpm_max,
                 artist=osu_file.metadata.artist,
                 title=osu_file.metadata.title,
                 mapper=osu_file.metadata.creator,
@@ -236,7 +238,7 @@ class ImportDialog(QDialog):
 
         metadata_tags, mapping_tags = self._extract_tag_names(osu_file)
         manual_tags = self._get_selected_mapping_tags()
-        metadata_tags = self._merge_tags(metadata_tags, manual_tags)
+        mapping_tags = self._merge_tags(mapping_tags, manual_tags)
 
         linked_tag_names: list[str] = []
         try:
@@ -270,12 +272,14 @@ class ImportDialog(QDialog):
         except Exception as persist_err:
             logger.warning("Failed to persist custom tag: %s", persist_err)
 
-        # Handle user image
+        # Handle user image (thumbnail + preview)
         try:
-            user_image_bytes = self._get_selected_image_bytes()
+            thumbnail_bytes, preview_bytes = self._get_selected_image_bytes()
             user_image_filename = self._selected_image_path or ""
-            if user_image_bytes:
-                self.db.update_pattern_user_image(pattern.id, user_image_bytes, user_image_filename)
+            if thumbnail_bytes:
+                self.db.update_pattern_user_image(
+                    pattern.id, thumbnail_bytes, user_image_filename, preview_bytes,
+                )
         except Exception as img_err:
             logger.warning("Failed to attach user image: %s", img_err)
             self._show_error(f"Pattern saved, but image attachment failed: {img_err}")
@@ -293,32 +297,34 @@ class ImportDialog(QDialog):
     def _on_attach_image(self) -> None:
         """Open file dialog to select an image file."""
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "Attach Screenshot", "",
-            "Images (*.png *.jpg *.jpeg *.bmp)"
+            self, "Attach Screenshot", "", "Images (*.png *.jpg *.jpeg *.bmp)"
         )
         if file_path:
             self._selected_image_path = file_path
             self._image_filename_label.setText(file_path)
 
-    def _get_selected_image_bytes(self) -> bytes:
-        """Read and resize the selected image for thumbnail storage.
+    def _get_selected_image_bytes(self) -> tuple[bytes, bytes]:
+        """Read and resize the selected image for both thumbnail and preview storage.
 
         Reads the selected image file and resizes it to thumbnail
-        dimensions (512x384) for storage.
+        dimensions (512x384) and preview dimensions (1536x1152) for storage.
 
         Returns:
-            Resized image bytes in PNG format, or empty bytes if no
-            image was selected or reading failed.
+            A tuple of (thumbnail_bytes, preview_bytes), each in PNG format.
+            Empty bytes are returned for either if no image was selected
+            or reading/resizing failed.
         """
         if not self._selected_image_path:
-            return b""
+            return b"", b""
         try:
             with open(self._selected_image_path, "rb") as f:
                 raw_bytes = f.read()
-            return resize_image_for_thumbnail(raw_bytes, 512, 384)
+            thumbnail_bytes = resize_image_for_thumbnail(raw_bytes, 512, 384)
+            preview_bytes = resize_image_for_preview(raw_bytes, 1536, 1152)
+            return thumbnail_bytes, preview_bytes
         except (OSError, TypeError, Exception) as exc:
             logger.warning("Failed to read or resize image: %s", exc)
-            return b""
+            return b"", b""
 
     def _extract_tag_names(self, osu_file: OsuFile) -> tuple[list[str], list[str]]:
         """Extract unique tag names from the parsed OsuFile metadata.
@@ -422,10 +428,7 @@ class ImportDialog(QDialog):
         tag_display = ", ".join(tag_names) if tag_names else "none"
         selected_tags = self._get_selected_mapping_tags()
         tag_display += f"\nMapping tags: {', '.join(selected_tags) if selected_tags else 'none'}"
-        message = (
-            f"Pattern saved! {object_count} objects, "
-            f"tagged with: {tag_display}"
-        )
+        message = f"Pattern saved! {object_count} objects, tagged with: {tag_display}"
         self._error_label.hide()
         self._success_label.setText(message)
         self._success_label.show()
@@ -470,7 +473,7 @@ class ImportDialog(QDialog):
         remaining = content[start:]
 
         next_match = next_section_pattern.search(remaining)
-        objects_content = remaining[:next_match.start()] if next_match else remaining
+        objects_content = remaining[: next_match.start()] if next_match else remaining
 
         lines = []
         for line in objects_content.splitlines():
