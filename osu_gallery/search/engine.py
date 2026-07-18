@@ -103,16 +103,54 @@ class SearchEngine(QObject):
         """Rebuild the entire FTS5 index from the database.
 
         Uses incremental upserts instead of dropping and recreating the table.
+        Each pattern is processed independently — a failure on one pattern
+        is logged at WARNING and skipped so the rest of the index still
+        rebuilds cleanly.
         """
         patterns = self._db.get_all_patterns()
         for pattern in patterns:
-            tags = self._db.get_pattern_tags(pattern.id or 0)
-            tag_text = " ".join(t.name for t in tags)
-            searchable = (
-                f"{pattern.artist} {pattern.title} {pattern.mapper} "
-                f"{pattern.raw_code} {tag_text}"
+            try:
+                tags = self._db.get_pattern_tags(pattern.id or 0)
+                tag_text = " ".join(t.name for t in tags)
+                searchable = (
+                    f"{pattern.artist} {pattern.title} {pattern.mapper} "
+                    f"{pattern.raw_code} {tag_text}"
+                )
+                self._upsert_fts(pattern.id, searchable)
+            except Exception:
+                logger.warning(
+                    "sync_fts_all: failed to index pattern %s — skipping",
+                    pattern.id,
+                    exc_info=True,
+                )
+
+    def find_missing_fts_entries(self) -> list[int]:
+        """Return pattern IDs that exist in the pattern table but have no FTS row.
+
+        Diagnostic helper: runs SELECT id FROM pattern and
+        SELECT DISTINCT pattern_id FROM pattern_fts, diffs them, and logs
+        which pattern IDs are missing.
+        """
+        all_ids = [
+            r["id"]
+            for r in self._db.conn.execute("SELECT id FROM pattern ORDER BY id").fetchall()
+        ]
+        fts_ids = {
+            r["pattern_id"]
+            for r in self._db.conn.execute(
+                "SELECT DISTINCT pattern_id FROM pattern_fts"
+            ).fetchall()
+        }
+        missing = sorted(set(all_ids) - fts_ids)
+        if missing:
+            logger.warning(
+                "find_missing_fts_entries: %d pattern(s) without FTS row: %s",
+                len(missing),
+                missing,
             )
-            self._upsert_fts(pattern.id, searchable)
+        else:
+            logger.info("find_missing_fts_entries: all %d patterns have FTS rows", len(all_ids))
+        return missing
 
     def _upsert_fts(self, pattern_id: int, content: str) -> None:
         """Insert or update a single row in the FTS5 table."""

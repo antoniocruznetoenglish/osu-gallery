@@ -321,3 +321,92 @@ def test_search_quoted_term_with_embedded_quotes(engine, db):
     results = engine.search(SearchQuery(text='test"quoted'))
     assert len(results) == 1
     assert results[0].id == p1.id
+
+
+# -- BUG-121 / BUG-114: per-pattern sync isolation + single-pattern threading --
+
+
+def test_sync_fts_all_continues_after_one_pattern_fails(monkeypatch, engine, db):
+    """sync_fts_all isolates per-pattern failures: one bad pattern doesn't abort the loop."""
+    p1 = db.create_pattern(SAMPLE_OSU, object_count=3)
+    p2 = db.create_pattern(CIRCLES_ONLY, object_count=3)
+    p3 = db.create_pattern(SLIDERS_ONLY, object_count=2)
+
+    # Make one pattern's _upsert_fts raise — simulates corrupt data
+    call_order: list[int] = []
+    original_upsert = engine._upsert_fts
+
+    def failing_upsert(pid, content):
+        call_order.append(pid)
+        if pid == p2.id:
+            raise ValueError("simulated corrupt data")
+        return original_upsert(pid, content)
+
+    monkeypatch.setattr(engine, "_upsert_fts", failing_upsert)
+
+    # Should not raise; loop should continue past p2
+    engine.sync_fts_all()
+
+    # All three patterns should have been visited
+    assert p1.id in call_order
+    assert p2.id in call_order
+    assert p3.id in call_order
+
+    # p1 and p3 should be indexed (p2's upsert failed but loop continued)
+    indexed = {
+        r["pattern_id"]
+        for r in db.conn.execute("SELECT pattern_id FROM pattern_fts").fetchall()
+    }
+    assert p1.id in indexed
+    assert p3.id in indexed
+
+
+def test_notify_search_sync_threads_pattern_id(monkeypatch, engine, db):
+    """_notify_search_sync passes pattern_id to sync_fts when available."""
+    p1 = db.create_pattern(SAMPLE_OSU, object_count=3)
+
+    synced_ids: list[int] = []
+    original_sync_fts = engine.sync_fts
+
+    def track_sync(pid):
+        synced_ids.append(pid)
+        return original_sync_fts(pid)
+
+    monkeypatch.setattr(engine, "sync_fts", track_sync)
+
+    db.update_pattern(p1)
+
+    assert synced_ids == [p1.id], "Expected sync_fts to be called with the updated pattern_id"
+
+
+def test_find_missing_fts_entries_diagnostic(engine, db):
+    """find_missing_fts_entries returns pattern IDs without FTS rows."""
+    # Create patterns without triggering sync (bypass _notify_search_sync)
+    db.conn.execute(
+        "INSERT INTO pattern (created_at, updated_at, raw_code, object_count) "
+        "VALUES (?, ?, ?, ?)",
+        ("2026-01-01T00:00:00", "2026-01-01T00:00:00", SAMPLE_OSU, 3),
+    )
+    db.conn.execute(
+        "INSERT INTO pattern (created_at, updated_at, raw_code, object_count) "
+        "VALUES (?, ?, ?, ?)",
+        ("2026-01-01T00:00:00", "2026-01-01T00:00:00", CIRCLES_ONLY, 3),
+    )
+    db.conn.commit()
+
+    p1 = db.get_pattern(1)
+    p2 = db.get_pattern(2)
+
+    # Initially neither has an FTS row
+    missing = engine.find_missing_fts_entries()
+    assert set(missing) == {p1.id, p2.id}
+
+    # After syncing one, only the other is missing
+    engine.sync_fts(p1.id)
+    missing = engine.find_missing_fts_entries()
+    assert missing == [p2.id]
+
+    # After syncing all, none missing
+    engine.sync_fts(p2.id)
+    missing = engine.find_missing_fts_entries()
+    assert missing == []

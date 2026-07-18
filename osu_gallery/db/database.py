@@ -113,11 +113,14 @@ class GalleryDatabase:
                 circle_count INTEGER NOT NULL DEFAULT 0,
                 slider_count INTEGER NOT NULL DEFAULT 0,
                 timing_bpm REAL NOT NULL DEFAULT 0.0,
+                timing_bpm_min REAL NOT NULL DEFAULT 0.0,
+                timing_bpm_max REAL NOT NULL DEFAULT 0.0,
                 artist TEXT NOT NULL DEFAULT '',
                 title TEXT NOT NULL DEFAULT '',
                 mapper TEXT NOT NULL DEFAULT '',
                 mapping_tags TEXT NOT NULL DEFAULT '',
                 user_image BLOB,
+                user_image_preview BLOB,
                 user_image_filename TEXT NOT NULL DEFAULT ''
             );
 
@@ -185,6 +188,18 @@ class GalleryDatabase:
         if not self._column_exists("pattern", "user_image_filename"):
             self.conn.execute(
                 "ALTER TABLE pattern ADD COLUMN user_image_filename TEXT NOT NULL DEFAULT ''"
+            )
+        if not self._column_exists("pattern", "timing_bpm_min"):
+            self.conn.execute(
+                "ALTER TABLE pattern ADD COLUMN timing_bpm_min REAL NOT NULL DEFAULT 0.0"
+            )
+        if not self._column_exists("pattern", "timing_bpm_max"):
+            self.conn.execute(
+                "ALTER TABLE pattern ADD COLUMN timing_bpm_max REAL NOT NULL DEFAULT 0.0"
+            )
+        if not self._column_exists("pattern", "user_image_preview"):
+            self.conn.execute(
+                "ALTER TABLE pattern ADD COLUMN user_image_preview BLOB"
             )
 
     # -- Tag CRUD --
@@ -254,11 +269,14 @@ class GalleryDatabase:
         circle_count: int = 0,
         slider_count: int = 0,
         timing_bpm: float = 0.0,
+        timing_bpm_min: float = 0.0,
+        timing_bpm_max: float = 0.0,
         artist: str = "",
         title: str = "",
         mapper: str = "",
         mapping_tags: str = "",
         user_image: bytes = b"",
+        user_image_preview: bytes = b"",
         user_image_filename: str = "",
     ) -> Pattern:
         """Insert a new pattern and return it with its assigned id."""
@@ -266,18 +284,20 @@ class GalleryDatabase:
         cursor = self.conn.execute(
             "INSERT INTO pattern "
             "(created_at, updated_at, raw_code, objects_only, object_count, "
-            "circle_count, slider_count, timing_bpm, artist, title, mapper, mapping_tags, "
-            "user_image, user_image_filename) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "circle_count, slider_count, timing_bpm, timing_bpm_min, timing_bpm_max, "
+            "artist, title, mapper, mapping_tags, "
+            "user_image, user_image_preview, user_image_filename) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 now, now, raw_code, objects_only,
                 object_count, circle_count, slider_count, timing_bpm,
+                timing_bpm_min, timing_bpm_max,
                 artist, title, mapper, mapping_tags,
-                user_image, user_image_filename,
+                user_image, user_image_preview, user_image_filename,
             ),
         )
         self.conn.commit()
-        self._notify_search_sync()
+        self._notify_search_sync(pattern_id=cursor.lastrowid)
         return Pattern(
             id=cursor.lastrowid,
             created_at=datetime.fromisoformat(now),
@@ -288,11 +308,14 @@ class GalleryDatabase:
             circle_count=circle_count,
             slider_count=slider_count,
             timing_bpm=timing_bpm,
+            timing_bpm_min=timing_bpm_min,
+            timing_bpm_max=timing_bpm_max,
             artist=artist,
             title=title,
             mapper=mapper,
             mapping_tags=json.loads(mapping_tags) if mapping_tags else [],
             user_image=user_image,
+            user_image_preview=user_image_preview,
             user_image_filename=user_image_filename,
         )
 
@@ -300,9 +323,9 @@ class GalleryDatabase:
         """Return a pattern by id, or None if not found."""
         row = self.conn.execute(
             "SELECT id, created_at, updated_at, raw_code, objects_only, "
-            "object_count, circle_count, slider_count, timing_bpm, "
+            "object_count, circle_count, slider_count, timing_bpm, timing_bpm_min, timing_bpm_max, "
             "artist, title, mapper, mapping_tags, "
-            "user_image, user_image_filename "
+            "user_image, user_image_preview, user_image_filename "
             "FROM pattern WHERE id = ?",
             (pattern_id,),
         ).fetchone()
@@ -318,12 +341,17 @@ class GalleryDatabase:
             circle_count=row["circle_count"],
             slider_count=row["slider_count"],
             timing_bpm=row["timing_bpm"],
+            timing_bpm_min=row["timing_bpm_min"],
+            timing_bpm_max=row["timing_bpm_max"],
             artist=row["artist"],
             title=row["title"],
             mapper=row["mapper"],
             mapping_tags=json.loads(row["mapping_tags"]) if row["mapping_tags"] else [],
             tag_ids=self._get_pattern_tag_ids(row["id"]),
             user_image=row["user_image"] if row["user_image"] is not None else b"",
+            user_image_preview=(
+                row["user_image_preview"] if row["user_image_preview"] is not None else b""
+            ),
             user_image_filename=row["user_image_filename"] or "",
         )
 
@@ -331,9 +359,9 @@ class GalleryDatabase:
         """Return all patterns ordered by created_at descending."""
         rows = self.conn.execute(
             "SELECT id, created_at, updated_at, raw_code, objects_only, "
-            "object_count, circle_count, slider_count, timing_bpm, "
+            "object_count, circle_count, slider_count, timing_bpm, timing_bpm_min, timing_bpm_max, "
             "artist, title, mapper, mapping_tags, "
-            "user_image, user_image_filename "
+            "user_image, user_image_preview, user_image_filename "
             "FROM pattern ORDER BY created_at DESC"
         ).fetchall()
         patterns: list[Pattern] = []
@@ -348,11 +376,16 @@ class GalleryDatabase:
                 circle_count=row["circle_count"],
                 slider_count=row["slider_count"],
                 timing_bpm=row["timing_bpm"],
+                timing_bpm_min=row["timing_bpm_min"],
+                timing_bpm_max=row["timing_bpm_max"],
                 artist=row["artist"],
                 title=row["title"],
                 mapper=row["mapper"],
                 mapping_tags=json.loads(row["mapping_tags"]) if row["mapping_tags"] else [],
                 user_image=row["user_image"] if row["user_image"] is not None else b"",
+                user_image_preview=(
+                    row["user_image_preview"] if row["user_image_preview"] is not None else b""
+                ),
                 user_image_filename=row["user_image_filename"] or "",
             )
             p.tag_ids = self._get_pattern_tag_ids(row["id"])
@@ -366,8 +399,9 @@ class GalleryDatabase:
         self.conn.execute(
             "UPDATE pattern SET updated_at = ?, raw_code = ?, objects_only = ?, "
             "object_count = ?, circle_count = ?, slider_count = ?, "
-            "timing_bpm = ?, artist = ?, title = ?, mapper = ?, mapping_tags = ?, "
-            "user_image = ?, user_image_filename = ? WHERE id = ?",
+            "timing_bpm = ?, timing_bpm_min = ?, timing_bpm_max = ?, "
+            "artist = ?, title = ?, mapper = ?, mapping_tags = ?, "
+            "user_image = ?, user_image_preview = ?, user_image_filename = ? WHERE id = ?",
             (
                 pattern.updated_at.isoformat(),
                 pattern.raw_code,
@@ -376,17 +410,20 @@ class GalleryDatabase:
                 pattern.circle_count,
                 pattern.slider_count,
                 pattern.timing_bpm,
+                pattern.timing_bpm_min,
+                pattern.timing_bpm_max,
                 pattern.artist,
                 pattern.title,
                 pattern.mapper,
                 mapping_tags_json,
                 pattern.user_image,
+                pattern.user_image_preview,
                 pattern.user_image_filename,
                 pattern.id,
             ),
         )
         self.conn.commit()
-        self._notify_search_sync()
+        self._notify_search_sync(pattern_id=pattern.id)
 
     def delete_pattern(self, pattern_id: int) -> None:
         """Delete a pattern by id. Related pattern_tag entries are removed via CASCADE."""
@@ -397,18 +434,13 @@ class GalleryDatabase:
     # -- Tag-Pattern relationships --
 
     def add_tag_to_pattern(self, pattern_id: int, tag_id: int) -> None:
-        """Link a tag to a pattern. Raises DatabaseError if the relationship already exists."""
-        try:
-            self.conn.execute(
-                "INSERT INTO pattern_tag (pattern_id, tag_id) VALUES (?, ?)",
-                (pattern_id, tag_id),
-            )
-            self.conn.commit()
-            self._notify_search_sync()
-        except sqlite3.IntegrityError as err:
-            raise DatabaseError(
-                f"Tag {tag_id} already linked to pattern {pattern_id}"
-            ) from err
+        """Link a tag to a pattern. Silently skips if already linked."""
+        self.conn.execute(
+            "INSERT OR IGNORE INTO pattern_tag (pattern_id, tag_id) VALUES (?, ?)",
+            (pattern_id, tag_id),
+        )
+        self.conn.commit()
+        self._notify_search_sync(pattern_id=pattern_id)
 
     def remove_tag_from_pattern(self, pattern_id: int, tag_id: int) -> None:
         """Unlink a tag from a pattern."""
@@ -417,7 +449,7 @@ class GalleryDatabase:
             (pattern_id, tag_id),
         )
         self.conn.commit()
-        self._notify_search_sync()
+        self._notify_search_sync(pattern_id=pattern_id)
 
     def get_pattern_tags(self, pattern_id: int) -> list[Tag]:
         """Return all tags linked to a given pattern."""
@@ -455,8 +487,9 @@ class GalleryDatabase:
         rows = self.conn.execute(
             "SELECT p.id, p.created_at, p.updated_at, p.raw_code, p.objects_only, "
             "p.object_count, p.circle_count, p.slider_count, p.timing_bpm, "
+            "p.timing_bpm_min, p.timing_bpm_max, "
             "p.artist, p.title, p.mapper, p.mapping_tags, "
-            "p.user_image, p.user_image_filename "
+            "p.user_image, p.user_image_preview, p.user_image_filename "
             "FROM pattern p "
             "JOIN pattern_tag pt ON pt.pattern_id = p.id "
             "WHERE pt.tag_id = ? "
@@ -475,11 +508,16 @@ class GalleryDatabase:
                 circle_count=row["circle_count"],
                 slider_count=row["slider_count"],
                 timing_bpm=row["timing_bpm"],
+                timing_bpm_min=row["timing_bpm_min"],
+                timing_bpm_max=row["timing_bpm_max"],
                 artist=row["artist"],
                 title=row["title"],
                 mapper=row["mapper"],
                 mapping_tags=json.loads(row["mapping_tags"]) if row["mapping_tags"] else [],
                 user_image=row["user_image"] if row["user_image"] is not None else b"",
+                user_image_preview=(
+                    row["user_image_preview"] if row["user_image_preview"] is not None else b""
+                ),
                 user_image_filename=row["user_image_filename"] or "",
             )
             p.tag_ids = self._get_pattern_tag_ids(row["id"])
@@ -497,7 +535,7 @@ class GalleryDatabase:
                 (pattern_id, tag_id),
             )
         self.conn.commit()
-        self._notify_search_sync()
+        self._notify_search_sync(pattern_id=pattern_id)
 
     # -- Helpers --
 
@@ -508,31 +546,44 @@ class GalleryDatabase:
         ).fetchall()
         return [r["tag_id"] for r in rows]
 
-    def _notify_search_sync(self) -> None:
+    def _notify_search_sync(self, pattern_id: int | None = None) -> None:
         """Notify the search engine to sync the FTS5 index.
 
         Called after any pattern or tag modification to keep the FTS5
         index in sync. Uses a module-level reference to avoid circular imports.
+
+        If pattern_id is provided, only that pattern is re-synced via
+        sync_fts(pattern_id). If None, the full table is rebuilt via
+        sync_fts_all() (used for tag-level changes that affect many patterns).
         """
         if _search_engine is not None:
             try:
-                _search_engine.sync_fts_all()
+                if pattern_id is not None:
+                    _search_engine.sync_fts(pattern_id)  # type: ignore[attr-defined]
+                else:
+                    _search_engine.sync_fts_all()  # type: ignore[attr-defined]
             except Exception:
-                logger.debug("FTS5 sync failed", exc_info=True)
+                logger.warning("FTS5 sync failed", exc_info=True)
 
     def update_pattern_user_image(
-        self, pattern_id: int, user_image: bytes, filename: str
+        self,
+        pattern_id: int,
+        user_image: bytes,
+        filename: str,
+        user_image_preview: bytes = b"",
     ) -> None:
-        """Update a pattern's user image data.
+        """Update a pattern's user image and preview data.
 
         Args:
             pattern_id: The id of the pattern to update.
-            user_image: Resized image bytes (PNG format).
+            user_image: Resized thumbnail image bytes (PNG format).
             filename: Original filename for reference.
+            user_image_preview: Resized preview image bytes (PNG format).
         """
         self.conn.execute(
-            "UPDATE pattern SET user_image = ?, user_image_filename = ? WHERE id = ?",
-            (user_image, filename, pattern_id),
+            "UPDATE pattern SET user_image = ?, user_image_preview = ?, "
+            "user_image_filename = ? WHERE id = ?",
+            (user_image, user_image_preview, filename, pattern_id),
         )
         self.conn.commit()
 
@@ -542,7 +593,7 @@ class GalleryDatabase:
             try:
                 _search_engine.remove_from_fts(pattern_id)  # type: ignore[attr-defined]
             except Exception:
-                logger.debug("FTS5 sync failed", exc_info=True)
+                logger.warning("FTS5 sync failed", exc_info=True)
 
     # -- Custom mapping tags --
 
