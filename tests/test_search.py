@@ -68,6 +68,90 @@ def test_fts_table_created(engine, db):
     assert row["name"] == "pattern_fts"
 
 
+def test_fts_self_heals_on_schema_mismatch(monkeypatch):
+    """Pre-creating pattern_fts with wrong columns triggers self-heal.
+
+    Regression test for BUG-122: FTS5 virtual tables cannot be ALTER'd, so
+    any database last touched by an older version of this code with a
+    different pattern_fts column layout would keep that incompatible schema
+    forever under CREATE ... IF NOT EXISTS. The fix: _init_fts() validates
+    the live schema and drops + recreates the table if the required `content`
+    column is missing, then rebuilds the index from source data.
+    """
+    from osu_gallery.search.engine import SearchEngine
+
+    tmp_path = pytest.importorskip("pathlib").Path(
+        __import__("tempfile").mkdtemp()
+    )
+    db_path = tmp_path / "test.db"
+
+    # Build a database with the pattern table but a deliberately wrong FTS
+    # schema (only `old_col`, no `content`).
+    db = GalleryDatabase(db_path)
+    db.conn.execute(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS pattern_fts USING fts5(old_col);"
+    )
+    db.conn.commit()
+
+    # Verify the wrong schema is in place before we touch the engine.
+    pragma_rows = db.conn.execute("PRAGMA table_info(pattern_fts)").fetchall()
+    col_names = {r["name"] for r in pragma_rows}
+    assert "content" not in col_names
+    assert "old_col" in col_names
+
+    # Create a pattern in the database so sync_fts_all has something to index.
+    pattern = db.create_pattern(SAMPLE_OSU, object_count=3)
+
+    # Now initialize SearchEngine — this must self-heal instead of throwing
+    # on the next write.
+    engine = SearchEngine(db)
+
+    # The table should now have the correct schema.
+    pragma_rows = db.conn.execute("PRAGMA table_info(pattern_fts)").fetchall()
+    col_names = {r["name"] for r in pragma_rows}
+    assert "content" in col_names
+    assert "pattern_id" in col_names
+
+    # sync_fts must work without OperationalError.
+    engine.sync_fts(pattern.id)
+
+    row = db.conn.execute(
+        "SELECT pattern_id, content FROM pattern_fts WHERE pattern_id = ?",
+        (pattern.id,),
+    ).fetchone()
+    assert row is not None
+    assert row["pattern_id"] == pattern.id
+
+
+def test_fts_self_heals_with_no_content_column_at_all(tmp_path):
+    """Even a table with zero matching columns triggers self-heal."""
+    from osu_gallery.search.engine import SearchEngine
+
+    db_path = tmp_path / "test.db"
+
+    db = GalleryDatabase(db_path)
+    # Table exists but has completely different columns (none of which are
+    # `content`).
+    db.conn.execute(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS pattern_fts USING fts5(foo, bar);"
+    )
+    db.conn.commit()
+
+    pattern = db.create_pattern(SAMPLE_OSU, object_count=3)
+
+    engine = SearchEngine(db)
+
+    # After init, the table must have been replaced with the correct schema.
+    pragma_rows = db.conn.execute("PRAGMA table_info(pattern_fts)").fetchall()
+    col_names = {r["name"] for r in pragma_rows}
+    assert col_names == {"pattern_id", "content"}
+
+    # And the existing pattern is now searchable.
+    results = engine.search(SearchQuery(text="Test Song"))
+    assert len(results) >= 1
+    assert results[0].id == pattern.id
+
+
 def test_fts_sync_on_pattern_create(engine, db):
     """Creating a pattern should sync it to the FTS5 index."""
     pattern = db.create_pattern(SAMPLE_OSU, object_count=3)

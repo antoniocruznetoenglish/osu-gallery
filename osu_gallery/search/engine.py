@@ -69,7 +69,17 @@ class SearchEngine(QObject):
         self._init_fts()
 
     def _init_fts(self) -> None:
-        """Create the FTS5 virtual table if it doesn't exist."""
+        """Create the FTS5 virtual table if it doesn't exist, or repair it.
+
+        FTS5 virtual tables cannot be ALTER TABLE'd to add or rename columns.
+        If the table was created by an older version of this code with a
+        different column layout, the mismatch would persist forever because
+        CREATE VIRTUAL TABLE IF NOT EXISTS never replaces an existing table.
+        This method detects that condition (a `content` column is required)
+        and self-heals by dropping and recreating the table, then rebuilding
+        the index from source data. The FTS table is a derived index with
+        no unique data of its own, so this is always safe.
+        """
         self._db.conn.executescript(
             f"""
             CREATE VIRTUAL TABLE IF NOT EXISTS {self._fts_table_name} USING fts5(
@@ -78,6 +88,36 @@ class SearchEngine(QObject):
             );
             """
         )
+
+        # Schema-validation step: confirm the live table actually has a
+        # `content` column. If it doesn't (i.e. it predates this schema),
+        # drop and recreate it, then rebuild the index.
+        if not self._fts_has_content_column():
+            logger.info(
+                "_init_fts: %s lacks a 'content' column — dropping and recreating",
+                self._fts_table_name,
+            )
+            self._db.conn.execute(f"DROP TABLE IF EXISTS {self._fts_table_name}")
+            self._db.conn.executescript(
+                f"""
+                CREATE VIRTUAL TABLE {self._fts_table_name} USING fts5(
+                    pattern_id UNINDEXED,
+                    content
+                );
+                """
+            )
+            self.sync_fts_all()
+
+    def _fts_has_content_column(self) -> bool:
+        """Return True if the FTS5 table has a `content` column.
+
+        Uses PRAGMA table_info, which works on FTS5 virtual tables to list
+        the columns that were explicitly defined at creation time.
+        """
+        rows = self._db.conn.execute(
+            f"PRAGMA table_info({self._fts_table_name})"
+        ).fetchall()
+        return any(row["name"] == "content" for row in rows)
 
     def sync_fts(self, pattern_id: int) -> None:
         """Insert or update the FTS5 entry for a single pattern.
