@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 
 from PySide6.QtCore import Qt
@@ -10,6 +9,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
+    QFileDialog,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from osu_gallery._constants import MAPPING_TAG_OPTIONS
 from osu_gallery.db.database import GalleryDatabase
 from osu_gallery.db.models import Pattern
+from osu_gallery.preview.image_resizer import resize_image_for_preview, resize_image_for_thumbnail
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +200,15 @@ class EditDialog(QDialog):
         self._cancel_button.setMinimumHeight(36)
         layout.addWidget(self._cancel_button, 6, 1, 1, 1)
 
+        self._attach_image_button = QPushButton("Attach Screenshot")
+        self._attach_image_button.setMinimumHeight(36)
+        layout.addWidget(self._attach_image_button, 7, 0, 1, 1)
+
+        self._image_filename_label = QLabel("")
+        self._image_filename_label.setWordWrap(True)
+        self._image_filename_label.setStyleSheet("color: rgb(160, 160, 160);")
+        layout.addWidget(self._image_filename_label, 7, 1, 1, 1)
+
     def _populate_fields(self) -> None:
         """Fill all form fields with the current pattern data."""
         self._text_edit.setPlainText(self._pattern.raw_code)
@@ -210,10 +220,17 @@ class EditDialog(QDialog):
         for cb, tag_name in self._checkboxes:
             cb.setChecked(tag_name in existing_tags)
 
+        if self._pattern.user_image:
+            filename = self._pattern.user_image_filename or "screenshot"
+            self._image_filename_label.setText(f"Screenshot attached: {filename}")
+        else:
+            self._image_filename_label.setText("No screenshot attached")
+
     def _setup_connections(self) -> None:
         """Wire up signal-slot connections for button clicks."""
         self._save_button.clicked.connect(self._on_save)
         self._cancel_button.clicked.connect(self.reject)
+        self._attach_image_button.clicked.connect(self._on_attach_image)
 
     # -- Actions --
 
@@ -237,14 +254,24 @@ class EditDialog(QDialog):
         self._pattern.mapper = new_mapper
         self._pattern.mapping_tags = new_mapping_tags
 
-        mapping_tags_json = json.dumps(new_mapping_tags) if new_mapping_tags else ""
-
         try:
             self._db.update_pattern(self._pattern)
         except Exception as err:
             logger.error("Database error updating pattern: %s", err)
             self._show_error(f"Database error: {err}")
             return
+
+        # Handle image attachment/replacement
+        try:
+            thumbnail_bytes, preview_bytes = self._get_selected_image_bytes()
+            if thumbnail_bytes:
+                image_filename = self._selected_image_path or ""
+                self._db.update_pattern_user_image(
+                    self._pattern.id, thumbnail_bytes, image_filename, preview_bytes,
+                )
+        except Exception as img_err:
+            logger.warning("Failed to attach user image: %s", img_err)
+            self._show_error(f"Pattern saved, but image attachment failed: {img_err}")
 
         self._sync_tags(new_mapping_tags)
 
@@ -294,6 +321,38 @@ class EditDialog(QDialog):
                 logger.debug("Failed to add tag %d to pattern %d", tag_id, self._pattern.id)
 
         self._pattern.tag_ids = list(new_tag_ids)
+
+    def _on_attach_image(self) -> None:
+        """Open file dialog to select an image file."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Attach Screenshot", "", "Images (*.png *.jpg *.jpeg *.bmp)"
+        )
+        if file_path:
+            self._selected_image_path = file_path
+            self._image_filename_label.setText(file_path)
+
+    def _get_selected_image_bytes(self) -> tuple[bytes, bytes]:
+        """Read and resize the selected image for both thumbnail and preview storage.
+
+        Reads the selected image file and resizes it to thumbnail
+        dimensions (512x384) and preview dimensions (1536x1152) for storage.
+
+        Returns:
+            A tuple of (thumbnail_bytes, preview_bytes), each in PNG format.
+            Empty bytes are returned for either if no image was selected
+            or reading/resizing failed.
+        """
+        if not self._selected_image_path:
+            return b"", b""
+        try:
+            with open(self._selected_image_path, "rb") as f:
+                raw_bytes = f.read()
+            thumbnail_bytes = resize_image_for_thumbnail(raw_bytes, 512, 384)
+            preview_bytes = resize_image_for_preview(raw_bytes, 1536, 1152)
+            return thumbnail_bytes, preview_bytes
+        except (OSError, TypeError, Exception) as exc:
+            logger.warning("Failed to read or resize image: %s", exc)
+            return b"", b""
 
     # -- Helpers --
 

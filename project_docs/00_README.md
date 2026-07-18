@@ -9,6 +9,13 @@ project_docs/
 ├── 02_System_Design.md          → HOW it's structured, framework-agnostic
 ├── 03_Technical_Architecture.md → WHICH tools/libraries/stack (frozen choices) + operability
 ├── 04_Implementation_Roadmap.md → WHEN — feasibility gate, milestones, feature log, open questions
+├── 04_Implementation_Roadmap_2.md → feature-specific roadmap additions
+├── 04_Implementation_Roadmap_3.md → feature-specific roadmap additions
+├── 04_Implementation_Roadmap_4.md → feature-specific roadmap additions
+├── 04_Implementation_Roadmap_5.md → feature-specific roadmap additions
+├── 04_Implementation_Roadmap_6.md → custom tags + grid layout (completed)
+├── 04_Implementation_Roadmap_7.md → feature-specific roadmap additions
+├── 04_Implementation_Roadmap_8.md → BLOB to file image storage (planned)
 ├── 05_AI_Collaboration_Rules.md → rules for any AI agent (human or model) touching this repo
 ├── 06_Decision_Log.md           → WHY — append-only record of decisions and rejected alternatives
 ├── 07_AI_Context_Brief.md       → condensed single-page cheat sheet, paste this into every session

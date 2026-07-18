@@ -32,16 +32,16 @@ def resize_image_for_thumbnail(
 
 
 def resize_image_for_preview(
-    image_bytes: bytes, target_width: int = 1024, target_height: int = 768
+    image_bytes: bytes, target_width: int = 1536, target_height: int = 1152
 ) -> bytes:
-    """Resize a user image to preview dimensions (1024x768).
+    """Resize a user image to preview dimensions (1536x1152).
 
     Maintains 4:3 aspect ratio by padding with dark background if needed.
 
     Args:
         image_bytes: Raw image bytes (PNG, JPG, etc.).
-        target_width: Target width in pixels (default 1024).
-        target_height: Target height in pixels (default 768).
+        target_width: Target width in pixels (default 1536).
+        target_height: Target height in pixels (default 1152).
 
     Returns:
         Resized image as bytes in PNG format.

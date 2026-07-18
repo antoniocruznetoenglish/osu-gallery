@@ -19,6 +19,7 @@ from osu_gallery.parser.models import (
     OsuFile,
     SliderData,
     SliderPath,
+    TimingPoint,
 )
 
 
@@ -35,7 +36,7 @@ def _parse_slider_path(path_string: str) -> list[SliderPath]:
     - Comma-separated: 'L|X1,Y1|X2,Y2|...' (standard osu!)
     - Colon-separated: 'L|X1:Y1|X2:Y2|...' (alternative format)
 
-    Path types: L (linear), B (bezier), C (circle/arc)
+    Path types: L (linear), B (bezier), C (circle/arc), P (perfect circle)
     """
     segments: list[SliderPath] = []
     if not path_string.strip():
@@ -53,7 +54,7 @@ def _parse_slider_path(path_string: str) -> list[SliderPath]:
             continue
 
         path_type = part[0]
-        if path_type not in ("L", "B", "C"):
+        if path_type not in ("L", "B", "C", "P"):
             i += 1
             continue
 
@@ -74,7 +75,7 @@ def _parse_slider_path(path_string: str) -> list[SliderPath]:
                 else:
                     break
         else:
-            # Bezier/Circle: coordinates are comma/colon-separated within a segment,
+            # Bezier/Circle/PerfectCircle: coordinates are comma/colon-separated within a segment,
             # segments are separated by '|'
             i += 1
             while i < len(parts):
@@ -102,13 +103,17 @@ def _parse_slider_path(path_string: str) -> list[SliderPath]:
             for j in range(0, len(all_coords), 2):
                 if j + 1 < len(all_coords):
                     points.append((float(all_coords[j]), float(all_coords[j + 1])))
-        elif path_type in ("B", "C"):
-            # Bezier/Circle: groups of 6 values (3 control points: x1,y1,x2,y2,x3,y3)
+        elif path_type in ("B", "C", "P"):
+            # Bezier/Circle/PerfectCircle: groups of 6 values (3 control points: x1,y1,x2,y2,x3,y3)
             for j in range(0, len(all_coords), 6):
                 if j + 5 < len(all_coords):
                     points.append((float(all_coords[j]), float(all_coords[j + 1])))
                     points.append((float(all_coords[j + 2]), float(all_coords[j + 3])))
                     points.append((float(all_coords[j + 4]), float(all_coords[j + 5])))
+
+        # Perfect-circle fallback: more than 3 path points degrades to bezier
+        if path_type == "P" and len(points) != 3:
+            path_type = "B"
 
         if points:
             segments.append(SliderPath(path_type=path_type, points=points))
@@ -138,20 +143,19 @@ def _parse_slider_data(
     pixel_length: float,
     edge_sounds_str: str,
     edge_additions_str: str,
-    multiplier_str: str,
-    tick_rate_str: str,
 ) -> SliderData:
-    """Parse the slider-specific fields into a SliderData object."""
-    try:
-        multiplier = float(multiplier_str) if multiplier_str else 1.0
-    except ValueError:
-        multiplier = 1.0
+    """Parse the slider-specific fields into a SliderData object.
 
-    try:
-        tick_rate = int(tick_rate_str) if tick_rate_str else 1
-    except ValueError:
-        tick_rate = 1
+    Args:
+        path_data: The slider path string (e.g., 'L|100:100').
+        repeats: Number of repeats.
+        pixel_length: Slider pixel length.
+        edge_sounds_str: Comma-separated edge sound indices.
+        edge_additions_str: Comma-separated edge addition names.
 
+    Returns:
+        A SliderData object with parsed slider information.
+    """
     edge_sounds: list[int] = []
     if edge_sounds_str.strip():
         for s in edge_sounds_str.strip().split(","):
@@ -170,8 +174,6 @@ def _parse_slider_data(
         pixel_length=pixel_length,
         edge_sounds=edge_sounds,
         edge_additions=edge_additions,
-        multiplier=multiplier,
-        tick_rate=tick_rate,
     )
 
 
@@ -182,7 +184,7 @@ def _parse_hit_object(line: str) -> HitObject:
         x,y,time,type,hitSound,objectParams,hitSample
 
     Where:
-        x, y: float coordinates
+        x, y: float coordinates (may be negative)
         time: int milliseconds
         type: int bitmask (1=circle, 2=slider, 4=new combo, 8=spinner,
             16=colour_skip_1, 32=colour_skip_2, 64=colour_skip_4, 128=mania_hold)
@@ -194,7 +196,7 @@ def _parse_hit_object(line: str) -> HitObject:
     # After that, objectParams depends on the type and may contain commas/pipes.
     # We extract the first 5 fields via regex, then parse the rest based on type.
     match = re.match(
-        r"^([\d.]+),([\d.]+),(\d+),(\d+),(\d+)(?:,(.*))?$", line
+        r"^(-?[\d.]+),(-?[\d.]+),(\d+),(\d+),(\d+)(?:,(.*))?$", line
     )
     if not match:
         raise ParseError(f"Hit object line does not match expected format: {line!r}")
@@ -226,22 +228,13 @@ def _parse_hit_object(line: str) -> HitObject:
         if not remainder:
             raise ParseError(f"Slider missing object params: {line!r}")
 
-        # Split remainder to extract edge sounds/additions if present.
-        # The slider params end with ,int,int[,int,int[,int,int[,int[,int]]]]
-        # Strategy: find the last occurrence of ,int,int pattern that marks edge sounds.
-        # For robustness, parse from the end.
         edge_sounds_str = ""
         edge_additions_str = ""
         slider_body = remainder
 
-        # Try to extract trailing ,edgeSounds,edgeAdditions before the repeats,length part.
-        # Actually the format is: curve|points,slides,length[,edgeSounds,edgeAdditions]
-        # We need to find slides and length which are the first two comma-separated ints
-        # after the curve data. But curve data can contain commas in linear sliders.
-        #
         # Robust approach: use regex to find the curve prefix, then parse the numeric tail.
         slider_match = re.match(
-            r"^([LBCO]\|(?:[\d.:|]+)),(\d+),([\d.]+)(?:,(.*))?$",
+            r"^([LBCP]\|(?:[\d.:|]+)),(\d+),([\d.]+)(?:,(.*))?$",
             slider_body,
         )
         if not slider_match:
@@ -261,15 +254,11 @@ def _parse_hit_object(line: str) -> HitObject:
         optional_str = slider_match.group(4) if slider_match.group(4) else ""
         edge_sounds_str = ""
         edge_additions_str = ""
-        multiplier_str = "1"
-        tick_rate_str = "1"
 
         if optional_str:
             opt_parts = optional_str.split(",")
             edge_sounds_str = opt_parts[0] if len(opt_parts) > 0 else ""
             edge_additions_str = opt_parts[1] if len(opt_parts) > 1 else ""
-            multiplier_str = opt_parts[3] if len(opt_parts) > 3 else "1"
-            tick_rate_str = opt_parts[4] if len(opt_parts) > 4 else "1"
 
         hit_object.slider = _parse_slider_data(
             path_data=path_data,
@@ -277,8 +266,6 @@ def _parse_hit_object(line: str) -> HitObject:
             pixel_length=pixel_length,
             edge_sounds_str=edge_sounds_str,
             edge_additions_str=edge_additions_str,
-            multiplier_str=multiplier_str,
-            tick_rate_str=tick_rate_str,
         )
 
     elif hit_type & HitObjectType.SPINNER:
@@ -342,7 +329,7 @@ def _extract_hit_sample(line: str, hit_type: HitObjectType) -> str | None:
 
     # Find the position after the first 5 comma-separated fields.
     match = re.match(
-        r"^([\d.]+),([\d.]+),(\d+),(\d+),(\d+)(?:,(.*))?$", line
+        r"^(-?[\d.]+),(-?[\d.]+),(\d+),(\d+),(\d+)(?:,(.*))?$", line
     )
     if not match:
         return None
@@ -495,22 +482,26 @@ def _safe_float(value: str | None, default: float) -> float:
         return default
 
 
-def _parse_timing_points(content: str) -> float:
-    """Parse the [TimingPoints] section and compute BPM.
+def _parse_timing_points(content: str) -> list[TimingPoint]:
+    """Parse the [TimingPoints] section into a list of TimingPoint objects.
 
-    In osu!, timing points define the BPM. The first timing point typically
-    has a negative BPM value (e.g., -120 means 120 BPM). Subsequent timing
-    points can override the BPM. Returns the effective BPM, or 0.0 if not
-    found.
+    Per the osu! spec:
+    - Uninherited timing points have positive beatLength and define the BPM.
+    - Inherited timing points have negative beatLength and represent
+      slider-velocity multipliers (not BPM).
+    - The 7th field (index 6) is the explicit uninherited flag (0 or 1).
 
-    Timing points use the format:
-        offset,ms_per_beat,beatLength,metric,sampleSet,sampleVolume,inherits
+    Args:
+        content: The raw .osu file content.
+
+    Returns:
+        An ordered list of TimingPoint objects.
     """
     timing_section = _extract_section(content, "TimingPoints")
     if not timing_section:
-        return 0.0
+        return []
 
-    bpm = 0.0
+    timing_points: list[TimingPoint] = []
     for line in timing_section.splitlines():
         line = line.strip()
         if not line or line.startswith("//") or line.startswith("#"):
@@ -520,18 +511,62 @@ def _parse_timing_points(content: str) -> float:
         if len(parts) < 2:
             continue
 
-        try:
-            ms_per_beat = float(parts[1])
-            if ms_per_beat < 0:
-                # Negative means BPM = 60000 / |ms_per_beat|
-                bpm = 60000.0 / abs(ms_per_beat)
-            elif ms_per_beat > 0:
-                # Positive means it's a speed multiplier, not a BPM override
-                pass
-        except (ValueError, ZeroDivisionError):
+        # Safe indexed access with per-field defaults for optional trailing fields
+        offset = _safe_float(parts[0] if len(parts) > 0 else None, 0.0)
+        beat_length = _safe_float(parts[1] if len(parts) > 1 else None, 0.0)
+        meter = int(parts[2]) if len(parts) > 2 else 4
+        sample_set = int(parts[3]) if len(parts) > 3 else 0
+        sample_index = int(parts[4]) if len(parts) > 4 else 0
+        volume = int(parts[5]) if len(parts) > 5 else 100
+
+        # Read uninherited flag (7th field, index 6) directly
+        uninherited_flag: int | None = None
+        if len(parts) > 6:
+            try:
+                uninherited_flag = int(parts[6])
+            except ValueError:
+                uninherited_flag = None
+
+        effects = int(parts[7]) if len(parts) > 7 else 0
+
+        # Determine if uninherited: prefer explicit flag, fall back to sign
+        is_uninherited = bool(uninherited_flag) if uninherited_flag is not None else beat_length > 0
+
+        # Guard against beatLength == 0 (division by zero)
+        if beat_length == 0:
+            tp = TimingPoint(
+                offset=offset,
+                beat_length=beat_length,
+                bpm=0.0,
+                is_uninherited=is_uninherited,
+                meter=meter,
+                sample_set=sample_set,
+                sample_index=sample_index,
+                volume=volume,
+                effects=effects,
+            )
+            timing_points.append(tp)
             continue
 
-    return round(bpm, 2)
+        # Only compute BPM from uninherited timing points.
+        # Use abs(beat_length) because some real maps have uninherited TPs
+        # with negative beatLength (first TP establishes BPM + SV simultaneously).
+        bpm = round(60000.0 / abs(beat_length), 2) if is_uninherited else 0.0
+
+        tp = TimingPoint(
+            offset=offset,
+            beat_length=beat_length,
+            bpm=bpm,
+            is_uninherited=is_uninherited,
+            meter=meter,
+            sample_set=sample_set,
+            sample_index=sample_index,
+            volume=volume,
+            effects=effects,
+        )
+        timing_points.append(tp)
+
+    return timing_points
 
 
 def _extract_section(content: str, section: str) -> str:
@@ -661,7 +696,16 @@ def parse_osu_file(content: str) -> OsuFile:
     osu.resolve_combo_colours()
 
     # Parse [TimingPoints] section and compute BPM
-    osu.timing_bpm = _parse_timing_points(content)
+    timing_points = _parse_timing_points(content)
+    osu._timing_points = timing_points
+
+    uninherited_bpm_values = [
+        tp.bpm for tp in timing_points if tp.is_uninherited and tp.bpm > 0
+    ]
+    if uninherited_bpm_values:
+        osu.timing_bpm = uninherited_bpm_values[0]
+        osu.bpm_min = min(uninherited_bpm_values)
+        osu.bpm_max = max(uninherited_bpm_values)
 
     return osu
 

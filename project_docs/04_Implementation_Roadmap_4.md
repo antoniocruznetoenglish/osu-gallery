@@ -560,8 +560,22 @@ All tasks to be completed in this roadmap.
 - [x] Task 5: "Pattern Tags" button added next to import; panel shows all options with add/remove capability
 - [x] Task 6: Last-saved pattern miniature matches its preview (no visual discrepancy)
 - [x] Task 7: User image inputs saved alongside pattern; user image takes priority over auto-generated preview
-- [x] Existing test suite still passes (301 tests)
-- [x] New tests added for each task (73 tests)
+- [x] Existing test suite still passes (301 tests at time of completion)
+- [x] New tests added for each task (73 tests at time of completion)
 - [x] `ruff` linting passes with no errors
 - [x] Database migrations backward-compatible
 - [x] Feature logged in `04_Implementation_Roadmap.md` §5
+
+> **Note:** Several tasks in this roadmap had issues that were later fixed in subsequent roadmaps:
+> - Task 1 (thumbnail/preview sizes): BUG-103 — thumbnail widget had hardcoded 200x150 size despite constants being updated. Fixed in Roadmap 4/6.
+> - Task 7 (user images): BUG-101/102 — `QPixmap.save()` crashed with `TypeError` when saving to `bytearray`. Fixed in Roadmap 4.
+> - Preview dimensions were later increased to 1536x1152 in Roadmap 6 (Task 2).
+>
+> **Roadmap 7 fixes (2026-07-17):**
+> - Task 1 (sizes): Flow layout `heightForWidth()` bug fixed — thumbnails no longer overlap or collapse on resize.
+> - Task 2 (object visibility): Combo number labels remain visible and readable.
+> - Task 3 (mapping tags on preview): User mapping tags still displayed on preview pane.
+> - Task 4 (tag picker): Checkmark-based multi-select still in use.
+> - Task 5 (Pattern Tags panel): Button and dialog still functional.
+> - Task 6 (miniature match): Thumbnail and preview rendering still consistent.
+> - Task 7 (user images): Dual-resolution image storage added (thumbnail + preview copies); EditDialog now supports attaching/replacing screenshots.

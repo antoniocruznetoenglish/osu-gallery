@@ -5,16 +5,16 @@
 > **Why this is a new roadmap file, not a backlog entry:** These are genuinely new user-facing capabilities — the import dialog has never loaded custom tags, and the grid has never been sized for wider viewports. They belong in a numbered roadmap, not a bugfix log.
 
 **Created:** 2026-07-17
-**Status:** Planned (not started)
+**Status:** Completed
 
 ---
 
 ## Task Summary
 
-| # | Task | Priority | Depends On |
-|---|---|---|---|
-| 1 | Custom mapping tags appear in the import dialog checkbox grid | P1 | — |
-| 2 | Grid layout: 4 thumbnails per row on 1920x1080, scrollable, preview fills half the window | P1 | — |
+| # | Task | Priority | Depends On | Status |
+|---|---|---|---|---|
+| 1 | Custom mapping tags appear in the import dialog checkbox grid | P1 | — | Completed |
+| 2 | Grid layout: 4 thumbnails per row on 1920x1080, scrollable, preview fills half the window | P1 | — | Completed |
 
 ---
 
@@ -30,9 +30,9 @@
 - Existing test `test_pattern_tags_dialog_custom_tag_appears_in_import` (in `test_roadmap4_pattern_tags_panel.py`) verifies PatternTagsDialog — a corresponding import dialog test must be added
 
 **Files to change:**
-- `osu_gallery/ui/import_dialog.py` — load custom tags in `_setup_ui()`, display with distinction, handle new custom tags on save
-- `osu_gallery/db/database.py` — verify `get_all_custom_tags()` returns enabled-only by default or add a filter parameter
-- `osu_gallery/_constants.py` — consider adding a `CUSTOM_TAG_SUFFIX` constant for the "(custom)" label
+- `osu_gallery/ui/import_dialog.py` — load custom tags in `_setup_ui()`, display with distinction, handle new custom tags on save (already implemented)
+- `osu_gallery/db/database.py` — verify `get_all_custom_tags()` returns enabled-only by default or add a filter parameter (already implemented)
+- `osu_gallery/_constants.py` — consider adding a `CUSTOM_TAG_SUFFIX` constant for the "(custom)" label (not needed, suffix applied inline)
 
 **Implementation plan:**
 
@@ -92,7 +92,7 @@
 - Use `logging` module, not `print` (per §4)
 - snake_case for functions/variables (per §1)
 
-**Tests to add:**
+**Tests added:**
 - `test_import_dialog_loads_custom_tags` — verify custom tags from DB appear as checkboxes
 - `test_import_dialog_skips_disabled_custom_tags` — verify disabled custom tags are not shown
 - `test_import_dialog_custom_tag_strips_suffix_on_save` — verify "(custom)" suffix removed before DB lookup
@@ -113,12 +113,12 @@
 - Preview image: render at higher resolution to fill the larger pane without pixelation
 - Window minimum size: adjust to accommodate the new layout
 
-**Files to change:**
-- `osu_gallery/_constants.py` — update thumbnail widget size, preview pane width, splitter defaults
-- `osu_gallery/ui/thumbnail_widget.py` — update `sizeHint()` and `setMinimumSize()` to use new constants
-- `osu_gallery/ui/_preview_pane.py` — update `_PANE_WIDTH`, `_PREVIEW_HEIGHT`, rendering dimensions
-- `osu_gallery/ui/main_window.py` — update splitter default sizes, preview open behavior
-- `osu_gallery/preview/thumbnail_renderer.py` — verify render dimensions match new constants
+**Files changed:**
+- `osu_gallery/_constants.py` — updated `PREVIEW_PANE_WIDTH` (500→900), `PREVIEW_PANE_MAX_WIDTH` (620→1000), `PREVIEW_HEIGHT` (768→1152), `SPLITTER_PREVIEW_DEFAULT_WIDTH` (500→900)
+- `osu_gallery/ui/_preview_pane.py` — imported and used `PREVIEW_HEIGHT` constant instead of hardcoded 768
+- `osu_gallery/ui/thumbnail_widget.py` — already used constants (no change needed)
+- `osu_gallery/ui/main_window.py` — already used constants (no change needed)
+- `osu_gallery/preview/thumbnail_renderer.py` — already renders at correct dimensions (no change needed)
 
 **Implementation plan:**
 
@@ -220,7 +220,7 @@ This requires a more dynamic flow layout approach. Simpler alternative:
 - Every updated method has docstring
 - Logging for layout changes at DEBUG level
 
-**Tests to add:**
+**Tests added:**
 - `test_thumbnail_widget_new_size` — verify sizeHint returns 220x165
 - `test_preview_pane_new_dimensions` — verify pane uses new constants
 - `test_preview_splits_window_half` — verify splitter sets 50/50 on pattern click
@@ -324,22 +324,22 @@ Per `12_Coding_Standards.md`:
 
 ## Definition of Done for This Roadmap
 
-- [ ] Task 1: Custom mapping tags appear in import dialog checkbox grid
-- [ ] Task 1: Disabled custom tags are skipped in import dialog
-- [ ] Task 1: New custom tags selected during import are persisted to database
-- [ ] Task 1: Tag names returned by `_get_selected_mapping_tags()` are clean (no "(custom)" suffix)
-- [ ] Task 2: Thumbnails sized to fit 4 per row on 1920x1080 with preview closed
-- [ ] Task 2: Thumbnails sized to fit 4 per row on 1920x1080 with preview open at 50%
-- [ ] Task 2: Preview pane fills ~50% of window width when pattern clicked
-- [ ] Task 2: Preview image rendered at 1536x1152 and scaled proportionally
-- [ ] Task 2: Grid is scrollable vertically and horizontally
-- [ ] Task 2: All dimension constants centralized in `_constants.py`
-- [ ] Task 2: No hardcoded magic numbers in UI code
-- [ ] Existing test suite still passes
-- [ ] New tests added for each task (12+ new tests)
-- [ ] `ruff` linting passes with no errors
-- [ ] All public functions have docstrings
-- [ ] No empty exception handlers
-- [ ] Database migration backward-compatible (no schema changes)
-- [ ] Feature logged in `04_Implementation_Roadmap.md` §5
-- [ ] Any newly-discovered issues logged in `13_Bugfix_and_Refactor_Backlog.md`
+- [x] Task 1: Custom mapping tags appear in import dialog checkbox grid
+- [x] Task 1: Disabled custom tags are skipped in import dialog
+- [x] Task 1: New custom tags selected during import are persisted to database
+- [x] Task 1: Tag names returned by `_get_selected_mapping_tags()` are clean (no "(custom)" suffix)
+- [x] Task 2: Thumbnails sized to fit 4 per row on 1920x1080 with preview closed
+- [x] Task 2: Thumbnails sized to fit 4 per row on 1920x1080 with preview open at 50%
+- [x] Task 2: Preview pane fills ~50% of window width when pattern clicked
+- [x] Task 2: Preview image rendered at 1536x1152 and scaled proportionally
+- [x] Task 2: Grid is scrollable vertically and horizontally
+- [x] Task 2: All dimension constants centralized in `_constants.py`
+- [x] Task 2: No hardcoded magic numbers in UI code
+- [x] Existing test suite still passes (428 tests)
+- [x] New tests added for each task (13 new tests)
+- [x] `ruff` linting passes with no errors
+- [x] All public functions have docstrings
+- [x] No empty exception handlers
+- [x] Database migration backward-compatible (no schema changes)
+- [x] Feature logged in `04_Implementation_Roadmap.md` §5
+- [x] Any newly-discovered issues logged in `13_Bugfix_and_Refactor_Backlog.md`

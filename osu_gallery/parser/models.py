@@ -35,8 +35,23 @@ class ObjectSound(IntFlag):
 class SliderPath:
     """A single path segment within a slider."""
 
-    path_type: str  # 'B' (bezier), 'L' (linear), 'C' (circle/arc)
+    path_type: str  # 'B' (bezier), 'L' (linear), 'C' (circle/arc), 'P' (perfect circle)
     points: list[tuple[float, float]]
+
+
+@dataclass
+class TimingPoint:
+    """A single timing point from the [TimingPoints] section."""
+
+    offset: float = 0.0
+    beat_length: float = 0.0
+    bpm: float = 0.0
+    is_uninherited: bool = True
+    meter: int = 4
+    sample_set: int = 0
+    sample_index: int = 0
+    volume: int = 100
+    effects: int = 0
 
 
 @dataclass
@@ -51,8 +66,6 @@ class SliderData:
     sample_set: str = "Normal"
     sample_index: int = 0
     addition_info: str = ""
-    multiplier: float = 1.0
-    tick_rate: int = 1
 
 
 @dataclass
@@ -153,6 +166,9 @@ class OsuFile:
     timer: int = 0
     point_spacing: float = 3.0
     timing_bpm: float = 0.0
+    bpm_min: float = 0.0
+    bpm_max: float = 0.0
+    _timing_points: list[TimingPoint] = field(default_factory=list)
 
     def resolve_combo_colours(self) -> None:
         """Resolve raw combo indices to actual combo colour values.
@@ -176,3 +192,40 @@ class OsuFile:
     def slider_count(self) -> int:
         """Count of slider hit objects (excludes circles, spinners, mania holds)."""
         return sum(1 for obj in self.hit_objects if obj.is_slider)
+
+    def effective_sv_at(self, time_ms: int) -> float:
+        """Find the effective slider velocity multiplier at a given time.
+
+        Walks backwards through the timing point list to find the most recent
+        timing point at or before time_ms. If it is an inherited point, the
+        SV is computed from its negative beatLength (SV = 100 / |beatLength|).
+        Otherwise SV = 1.0.
+
+        This is groundwork for accurate slider duration computation;
+        not currently consumed by the static thumbnail renderer.
+
+        Args:
+            time_ms: The time in milliseconds to query.
+
+        Returns:
+            The effective SV multiplier at that time.
+        """
+        if not self._timing_points:
+            return 1.0
+
+        effective_tp: TimingPoint | None = None
+        for tp in self._timing_points:
+            if tp.offset > time_ms:
+                break
+            effective_tp = tp
+
+        if effective_tp is None:
+            return 1.0
+
+        if effective_tp.is_uninherited:
+            return 1.0
+
+        if effective_tp.beat_length < 0:
+            return 100.0 / abs(effective_tp.beat_length)
+
+        return 1.0

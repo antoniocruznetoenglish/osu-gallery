@@ -198,7 +198,13 @@ class QFlowLayout(QLayout):
 
                 cursor_x += item_width + h_spacing
 
-            return QRect(QPoint(effective_rect.left(), cursor_y), QSize())
+            content_bottom = cursor_y + self._line_height
+            margins = self.contentsMargins()
+            total_height = content_bottom - rect.top() + margins.bottom()
+            return QRect(
+                QPoint(effective_rect.left(), rect.top()),
+                QSize(rect.width(), max(total_height, 0)),
+            )
 
         for item in self._items:
             widget = item.widget()
@@ -221,7 +227,13 @@ class QFlowLayout(QLayout):
 
             cursor_x += item_width + h_spacing
 
-        return QRect(QPoint(effective_rect.left(), cursor_y), QSize())
+        content_bottom = cursor_y + self._line_height
+        margins = self.contentsMargins()
+        total_height = content_bottom - rect.top() + margins.bottom()
+        return QRect(
+            QPoint(effective_rect.left(), rect.top()),
+            QSize(rect.width(), max(total_height, 0)),
+        )
 
     @property
     def _line_height(self) -> int:
