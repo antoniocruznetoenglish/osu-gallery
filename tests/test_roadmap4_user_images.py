@@ -228,11 +228,11 @@ def test_pattern_user_image_defaults_to_empty(db):
 
 
 def test_resize_functions_have_correct_defaults():
-    """resize_image_for_thumbnail defaults to 512x384 and preview to 1024x768."""
+    """resize_image_for_thumbnail defaults to 512x384 and preview to 1536x1152."""
     sig_thumb = inspect.signature(resize_image_for_thumbnail)
     sig_prev = inspect.signature(resize_image_for_preview)
 
     assert sig_thumb.parameters["target_width"].default == 512
     assert sig_thumb.parameters["target_height"].default == 384
-    assert sig_prev.parameters["target_width"].default == 1024
-    assert sig_prev.parameters["target_height"].default == 768
+    assert sig_prev.parameters["target_width"].default == 1536
+    assert sig_prev.parameters["target_height"].default == 1152

@@ -21,24 +21,24 @@ def test_thumbnail_default_size_is_512x384():
     assert THUMBNAIL_HEIGHT == 384
 
 
-def test_preview_default_height_is_768():
-    """Preview height is doubled to 768."""
-    assert PREVIEW_HEIGHT == 768
+def test_preview_default_height_is_1152():
+    """Preview height is 1152."""
+    assert PREVIEW_HEIGHT == 1152
 
 
-def test_preview_pane_width_is_500():
-    """Preview pane width increased to 500."""
-    assert PREVIEW_PANE_WIDTH == 500
+def test_preview_pane_width_is_900():
+    """Preview pane width increased to 900."""
+    assert PREVIEW_PANE_WIDTH == 900
 
 
-def test_preview_pane_max_width_is_620():
-    """Preview pane max width increased to 620."""
-    assert PREVIEW_PANE_MAX_WIDTH == 620
+def test_preview_pane_max_width_is_1000():
+    """Preview pane max width increased to 1000."""
+    assert PREVIEW_PANE_MAX_WIDTH == 1000
 
 
-def test_splitter_default_width_is_500():
-    """Splitter default preview width is 500."""
-    assert SPLITTER_PREVIEW_DEFAULT_WIDTH == 500
+def test_splitter_default_width_is_900():
+    """Splitter default preview width is 900."""
+    assert SPLITTER_PREVIEW_DEFAULT_WIDTH == 900
 
 
 def test_thumbnail_widget_min_size():

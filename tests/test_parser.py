@@ -275,17 +275,224 @@ def test_parse_slider_with_edge_sounds():
     assert 0 in obj.slider.edge_sounds
 
 
-def test_parse_slider_with_multiplier():
+def test_parse_perfect_circle_slider():
+    """A 3-control-point P slider parses with path_type == 'P'."""
     content = """[General]
 
 [HitObjects]
-256,192,1000,6,0,L|100:100,1,100,,,,2.0,1
+256,192,1000,6,0,P|100:100|200:200|300:300,1,100
 """
     osu = parse_osu_file(content)
     obj = osu.hit_objects[0]
     assert obj.is_slider
     assert obj.slider is not None
-    assert obj.slider.multiplier == 2.0
+    p_paths = [p for p in obj.slider.path if p.path_type == "P"]
+    assert len(p_paths) == 1
+    assert len(p_paths[0].points) == 3
+
+
+def test_perfect_circle_more_than_3_points_degrades_to_bezier():
+    """A P slider with more than 3 control points degrades to B."""
+    content = """[General]
+
+[HitObjects]
+256,192,1000,6,0,P|100:100|200:200|300:300|400:400|500:500|600:600,1,100
+"""
+    osu = parse_osu_file(content)
+    obj = osu.hit_objects[0]
+    assert obj.is_slider
+    assert obj.slider is not None
+    b_paths = [p for p in obj.slider.path if p.path_type == "B"]
+    assert len(b_paths) == 1
+
+
+def test_perfect_circle_with_2_points_is_still_valid():
+    """A 2-control-point P slider doesn't crash the parser."""
+    content = """[General]
+
+[HitObjects]
+256,192,1000,6,0,P|100:100|200:200,1,100
+"""
+    osu = parse_osu_file(content)
+    obj = osu.hit_objects[0]
+    assert obj.is_slider
+    assert obj.slider is not None
+    assert len(obj.slider.path) == 0
+
+
+def test_bpm_single_uninherited_timing_point():
+    """A single uninherited timing point with beatLength=333.33 gives BPM ~180."""
+    content = """[General]
+
+[TimingPoints]
+0,333.33,4,0,0,100,1,0
+
+[HitObjects]
+256,192,1000,5,0
+"""
+    osu = parse_osu_file(content)
+    assert abs(osu.timing_bpm - 180.0) < 1.0
+
+
+def test_bpm_ignores_inherited_negative_timing_points():
+    """Inherited (negative beatLength) timing points don't affect BPM."""
+    content = """[General]
+
+[TimingPoints]
+0,333.33,4,0,0,100,1,0
+5000,-50,4,0,0,100,0,0
+
+[HitObjects]
+256,192,1000,5,0
+"""
+    osu = parse_osu_file(content)
+    assert abs(osu.timing_bpm - 180.0) < 1.0
+
+
+def test_bpm_uses_uninherited_flag_over_sign_when_present():
+    """When uninherited flag is present, it takes precedence over sign."""
+    content = """[General]
+
+[TimingPoints]
+0,333.33,4,0,0,100,0,0
+
+[HitObjects]
+256,192,1000,5,0
+"""
+    osu = parse_osu_file(content)
+    assert osu.timing_bpm == 0.0
+
+
+def test_bpm_zero_beatlength_does_not_crash():
+    """Malformed beatLength=0 doesn't crash the parser."""
+    content = """[General]
+
+[TimingPoints]
+0,0,4,0,0,100,1,0
+
+[HitObjects]
+256,192,1000,5,0
+"""
+    osu = parse_osu_file(content)
+    assert osu.timing_bpm == 0.0
+
+
+def test_bpm_range_single_bpm_map():
+    """Single-BPM map has bpm_min == bpm_max == timing_bpm."""
+    content = """[General]
+
+[TimingPoints]
+0,333.33,4,0,0,100,1,0
+
+[HitObjects]
+256,192,1000,5,0
+"""
+    osu = parse_osu_file(content)
+    assert osu.bpm_min == osu.bpm_max == osu.timing_bpm
+
+
+def test_bpm_range_multi_bpm_map():
+    """Multi-BPM map reports correct min/max."""
+    content = """[General]
+
+[TimingPoints]
+0,375.0,4,0,0,100,1,0
+10000,300.0,4,0,0,100,1,0
+
+[HitObjects]
+256,192,1000,5,0
+"""
+    osu = parse_osu_file(content)
+    assert osu.bpm_min == 160.0
+    assert osu.bpm_max == 200.0
+    assert osu.timing_bpm == 160.0
+
+
+def test_slider_velocity_no_inherited_point():
+    """A slider with no covering inherited timing point uses SV = 1."""
+    content = """[General]
+
+[TimingPoints]
+0,333.33,4,0,0,100,1,0
+
+[HitObjects]
+256,192,1000,6,0,L|100:100,1,100
+"""
+    osu = parse_osu_file(content)
+    obj = osu.hit_objects[0]
+    assert obj.is_slider
+    assert osu.effective_sv_at(1000) == 1.0
+
+
+def test_slider_velocity_with_inherited_point():
+    """An inherited timing point with beatLength=-50 computes SV=2.0."""
+    content = """[General]
+
+[TimingPoints]
+0,333.33,4,0,0,100,1,0
+5000,-50,4,0,0,100,0,0
+
+[HitObjects]
+256,192,6000,6,0,L|100:100,1,100
+"""
+    osu = parse_osu_file(content)
+    assert osu.effective_sv_at(6000) == 2.0
+
+
+def test_slider_data_no_longer_has_fake_multiplier_field():
+    """Regression test: SliderData no longer has fake multiplier/tick_rate."""
+    content = """[General]
+
+[HitObjects]
+256,192,1000,6,0,L|100:100,1,100
+"""
+    osu = parse_osu_file(content)
+    obj = osu.hit_objects[0]
+    assert obj.is_slider
+    slider = obj.slider
+    assert slider is not None
+    assert not hasattr(slider, "multiplier")
+    assert not hasattr(slider, "tick_rate")
+
+
+def test_hit_object_negative_x_coordinate():
+    """A hit object with negative x coordinate parses successfully."""
+    content = """[General]
+
+[HitObjects]
+-5,192,1000,5,0
+"""
+    osu = parse_osu_file(content)
+    assert len(osu.hit_objects) == 1
+    assert osu.hit_objects[0].x == -5.0
+    assert osu.hit_objects[0].y == 192.0
+
+
+def test_hit_object_negative_y_coordinate():
+    """A hit object with negative y coordinate parses successfully."""
+    content = """[General]
+
+[HitObjects]
+256,-10,1000,5,0
+"""
+    osu = parse_osu_file(content)
+    assert len(osu.hit_objects) == 1
+    assert osu.hit_objects[0].x == 256.0
+    assert osu.hit_objects[0].y == -10.0
+
+
+def test_timing_point_missing_trailing_fields():
+    """A timing point line with only time,beatLength parses with defaults."""
+    content = """[General]
+
+[TimingPoints]
+0,333.33
+
+[HitObjects]
+256,192,1000,5,0
+"""
+    osu = parse_osu_file(content)
+    assert abs(osu.timing_bpm - 180.0) < 1.0
 
 
 def test_parse_spinner_with_end_time():

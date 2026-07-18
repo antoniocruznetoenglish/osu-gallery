@@ -91,9 +91,9 @@ def test_preview_scrollable_tags(db):
 
 
 def test_preview_pane_uses_correct_dimensions(db):
-    """_PreviewPane uses PREVIEW_HEIGHT=768 and _MIN_PANE_WIDTH=300."""
+    """_PreviewPane uses PREVIEW_HEIGHT=1152 and _MIN_PANE_WIDTH=300."""
     assert _PreviewPane._MIN_PANE_WIDTH == 300
-    assert _PreviewPane._PREVIEW_HEIGHT == 768
+    assert _PreviewPane._PREVIEW_HEIGHT == 1152
 
 
 def test_mapping_tags_stored_as_json_in_db(db):

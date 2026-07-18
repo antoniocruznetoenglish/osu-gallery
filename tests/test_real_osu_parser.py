@@ -63,14 +63,13 @@ def test_parse_real_file_editor(real_parsed_file):
 def test_parse_real_file_timing_points_bpm(real_parsed_file):
     """Verify BPM is calculated correctly from timing points.
 
-    The real file has timing points at -282.35 (212.5 BPM), -200.0 (300 BPM),
-    and -141.18 (425 BPM). The parser should use the last negative value.
+    The real file has the first TP as uninherited with beatLength=-282.35
+    (BPM = 60000/282.35 = 212.5). All subsequent TPs are inherited.
     """
     osu = real_parsed_file
 
     assert osu.timing_bpm > 0, "BPM should be calculated from timing points"
-    # The last timing point has -200.0 which equals 300 BPM
-    assert osu.timing_bpm == 300.0, f"Expected 300 BPM, got {osu.timing_bpm}"
+    assert abs(osu.timing_bpm - 212.5) < 1.0, f"Expected ~212.5 BPM, got {osu.timing_bpm}"
 
 
 def test_parse_real_file_timing_point_count(real_osu_content):
@@ -289,23 +288,16 @@ def test_parse_real_file_spinner_end_time(real_parsed_file):
 
 
 def test_parse_real_file_slider_multipliers(real_parsed_file):
-    """Verify sliders with different multipliers are parsed correctly."""
+    """Verify sliders are parsed correctly (multiplier fields removed per spec)."""
     osu = real_parsed_file
 
     slider_objects = [obj for obj in osu.hit_objects if obj.is_slider]
+    assert len(slider_objects) > 0
 
-    multipliers = {obj.slider.multiplier for obj in slider_objects if obj.slider}
-    assert 1.0 in multipliers, "Should have sliders with default multiplier"
-
-
-def test_parse_real_file_slider_tick_rates(real_parsed_file):
-    """Verify sliders with different tick rates are parsed correctly."""
-    osu = real_parsed_file
-
-    slider_objects = [obj for obj in osu.hit_objects if obj.is_slider]
-
-    tick_rates = {obj.slider.tick_rate for obj in slider_objects if obj.slider}
-    assert 1 in tick_rates, "Should have sliders with tick rate 1"
+    for obj in slider_objects:
+        assert obj.slider is not None
+        assert obj.slider.pixel_length > 0
+        assert obj.slider.repeats >= 0
 
 
 def test_parse_real_file_coordinates_range(real_parsed_file):

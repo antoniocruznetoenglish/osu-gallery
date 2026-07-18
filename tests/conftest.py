@@ -37,3 +37,29 @@ def real_parsed_file(real_osu_content):
     """Parse the real .osu file into an OsuFile object."""
     from osu_gallery.parser.osu_file import parse_osu_file
     return parse_osu_file(real_osu_content)
+
+
+MULTI_CURVE_OSU = """[General]
+AudioFilename: test.mp3
+
+[Difficulty]
+CircleSize: 4
+HPDrainRate: 5
+OverallDifficulty: 7
+ApproachRate: 8
+SliderMultiplier: 1.4
+SliderTickRate: 1
+
+[Metadata]
+Title:Multi Curve Test
+Artist:Test
+Creator:TestMapper
+Version:Test
+
+[HitObjects]
+256,192,100,5,0,,Normal:Clap:0::
+384,256,300,6,0,L|480:128,1,100,0,0,,0
+512,320,500,6,0,B|100:100:200:200:300:300,1,100,0,0,,0
+640,192,700,6,0,C|100:100:200:200:300:300,1,100,0,0,,0
+128,256,900,6,0,P|100,100|200,200|300,300,1,100,0,0,,0
+"""

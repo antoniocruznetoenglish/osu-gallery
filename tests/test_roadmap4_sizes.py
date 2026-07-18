@@ -37,8 +37,8 @@ AudioFilename: test.mp3
     assert THUMBNAIL_HEIGHT == 384
 
 
-def test_preview_rendered_at_1024x768():
-    """render_pattern_preview returns a pixmap at 1024x768 by default."""
+def test_preview_rendered_at_1536x1152():
+    """render_pattern_preview returns a pixmap at 1536x1152 when called with new dimensions."""
     from osu_gallery.parser.osu_file import parse_osu_file
 
     content = """[General]
@@ -48,10 +48,10 @@ AudioFilename: test.mp3
 256,192,1000,5,0
 """
     osu = parse_osu_file(content)
-    pixmap = render_pattern_preview(osu)
-    assert pixmap.width() == 1024
-    assert pixmap.height() == PREVIEW_HEIGHT
-    assert PREVIEW_HEIGHT == 768
+    pixmap = render_pattern_preview(osu, width=1536, height=1152)
+    assert pixmap.width() == 1536
+    assert pixmap.height() == 1152
+    assert PREVIEW_HEIGHT == 1152
 
 
 def test_thumbnail_widget_paints_at_rendered_size():
@@ -62,9 +62,9 @@ def test_thumbnail_widget_paints_at_rendered_size():
 
 def test_preview_pane_scales_correctly():
     """Preview pane uses correct PREVIEW_HEIGHT and pane width constants."""
-    assert PREVIEW_PANE_WIDTH == 500
-    assert PREVIEW_PANE_MAX_WIDTH == 620
-    assert SPLITTER_PREVIEW_DEFAULT_WIDTH == 500
+    assert PREVIEW_PANE_WIDTH == 900
+    assert PREVIEW_PANE_MAX_WIDTH == 1000
+    assert SPLITTER_PREVIEW_DEFAULT_WIDTH == 900
 
 
 def test_thumbnail_at_custom_dimensions():

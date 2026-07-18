@@ -210,12 +210,13 @@ def test_add_tag_to_pattern(db):
     assert tags[0].name == "slider"
 
 
-def test_add_tag_to_pattern_duplicate_raises(db):
+def test_add_tag_to_pattern_duplicate_ignored(db):
     tag = db.create_tag("slider")
     pattern = db.create_pattern("test")
     db.add_tag_to_pattern(pattern.id, tag.id)
-    with pytest.raises(DatabaseError):
-        db.add_tag_to_pattern(pattern.id, tag.id)
+    db.add_tag_to_pattern(pattern.id, tag.id)
+    tags = db.get_pattern_tags(pattern.id)
+    assert len(tags) == 1
 
 
 def test_remove_tag_from_pattern(db):

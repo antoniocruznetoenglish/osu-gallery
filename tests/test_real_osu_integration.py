@@ -30,6 +30,8 @@ def real_db(tmp_path, real_osu_content):
         circle_count=osu_file.circle_count,
         slider_count=osu_file.slider_count,
         timing_bpm=osu_file.timing_bpm,
+        timing_bpm_min=osu_file.bpm_min,
+        timing_bpm_max=osu_file.bpm_max,
     )
 
     # Sync FTS index for search tests
@@ -62,7 +64,7 @@ def test_real_file_stored_and_retrieved(real_db, real_osu_content):
     assert pattern.object_count == 117
     assert pattern.circle_count > 0
     assert pattern.slider_count > 0
-    assert pattern.timing_bpm == 300.0
+    assert abs(pattern.timing_bpm - 212.5) < 1.0
 
 
 def test_real_file_metadata_preserved(real_db, real_parsed_file):
@@ -80,7 +82,7 @@ def test_real_file_metadata_preserved(real_db, real_parsed_file):
 def test_real_file_timing_bpm_preserved(real_db):
     """Verify BPM is preserved through database storage."""
     pattern = real_db.get_all_patterns()[0]
-    assert pattern.timing_bpm == 300.0
+    assert abs(pattern.timing_bpm - 212.5) < 1.0
 
 
 def test_real_file_combo_colors_preserved(real_db):
@@ -140,7 +142,7 @@ def test_real_file_multiple_imports(real_db, real_osu_content):
             object_count=117,
             circle_count=103,
             slider_count=13,
-            timing_bpm=300.0,
+            timing_bpm=212.5,
         )
 
     patterns = real_db.get_all_patterns()
@@ -360,12 +362,12 @@ def test_real_file_slider_with_complex_bezier(real_osu_content):
 
 
 def test_real_file_timing_point_bpm_changes(real_osu_content):
-    """Verify BPM changes are reflected in the parsed timing points."""
+    """Verify BPM is computed from the first uninherited timing point."""
     osu_file = parse_osu_file(real_osu_content)
 
     assert osu_file.timing_bpm > 0
-    # The file has multiple BPM values; parser uses the last negative one
-    assert osu_file.timing_bpm in (212.5, 300.0, 425.0)
+    # First TP is uninherited with beatLength=-282.35 -> BPM = 60000/282.35 = 212.5
+    assert abs(osu_file.timing_bpm - 212.5) < 1.0
 
 
 def test_real_file_slider_edge_sounds_parsed(real_osu_content):
