@@ -177,9 +177,14 @@ class SearchEngine(QObject):
 
         # Text search via FTS5
         if query.text.strip():
-            # Convert spaces to AND logic for multi-word queries
+            # Convert spaces to AND logic for multi-word queries,
+            # quoting each term to handle special characters like '/'
             terms = query.text.strip().split()
-            fts_query = " AND ".join(terms)
+            quoted = []
+            for t in terms:
+                escaped = t.replace('"', '""')
+                quoted.append(f'"{escaped}"')
+            fts_query = " AND ".join(quoted)
             sql_parts.append(f"WHERE {self._fts_table_name} MATCH ?")
             params.append(fts_query)
             has_where = True

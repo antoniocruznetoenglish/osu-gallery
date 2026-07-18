@@ -287,3 +287,37 @@ def test_search_by_tag_method(engine, db):
     results = engine.search_by_tag(tag.id)
     assert len(results) == 1
     assert results[0].id == p1.id
+
+
+def test_search_slash_in_tag_text(engine, db):
+    """Search for a tag containing '/' (e.g. '1/1 slider') returns matching patterns.
+
+    Regression test for BUG-120 / BUG-113: FTS5 terms containing '/'
+    must be quoted so the query parser doesn't reject them.
+    """
+    p1 = db.create_pattern(SAMPLE_OSU, object_count=3)
+    db.create_pattern(CIRCLES_ONLY, object_count=3)
+
+    tag = db.create_tag("1/1 slider", "mapping")
+    db.add_tag_to_pattern(p1.id, tag.id)
+
+    engine.sync_fts_all()
+
+    results = engine.search(SearchQuery(text="1/1 slider"))
+    assert len(results) == 1
+    assert results[0].id == p1.id
+
+
+def test_search_quoted_term_with_embedded_quotes(engine, db):
+    """Terms containing literal double-quotes are escaped by doubling them."""
+    p1 = db.create_pattern(SAMPLE_OSU, object_count=3)
+    db.create_pattern(CIRCLES_ONLY, object_count=3)
+
+    tag = db.create_tag('test"quoted', "mapping")
+    db.add_tag_to_pattern(p1.id, tag.id)
+
+    engine.sync_fts_all()
+
+    results = engine.search(SearchQuery(text='test"quoted'))
+    assert len(results) == 1
+    assert results[0].id == p1.id

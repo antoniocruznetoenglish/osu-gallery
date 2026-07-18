@@ -183,7 +183,7 @@ class MainWindow(QMainWindow):
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         grid_widget = QWidget()
-        self._flow_layout = QFlowLayout(grid_widget, columns=4)
+        self._flow_layout = QFlowLayout(grid_widget)
         grid_widget.setLayout(self._flow_layout)
         scroll.setWidget(grid_widget)
 
@@ -275,6 +275,9 @@ class MainWindow(QMainWindow):
         dialog.finished.connect(self.refresh)
         dialog.exec()
 
+        if self._preview_pane._current_pattern_id == pattern_id:
+            self._preview_pane.load_pattern(pattern_id, force=True)
+
     # -- Signal handlers --
 
     def _on_import_clicked(self) -> None:
@@ -291,14 +294,14 @@ class MainWindow(QMainWindow):
 
     def _on_pattern_clicked(self, pattern_id: int) -> None:
         """Show the preview pane for the clicked pattern."""
-        self._preview_pane.load_pattern(pattern_id)
-
         # Make sure the preview pane is visible in the splitter — use 50% of available width
         total_width = self._splitter.width()
         if total_width > 0:
             preview_width = total_width // 2
             grid_width = total_width - preview_width
             self._splitter.setSizes([grid_width, preview_width])
+
+        self._preview_pane.load_pattern(pattern_id)
 
     def _on_preview_closed(self) -> None:
         """Handle the preview pane being closed — collapse the right side."""

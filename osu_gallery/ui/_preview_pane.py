@@ -14,7 +14,16 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
+from osu_gallery._constants import PREVIEW_HEIGHT
 from osu_gallery.db.database import GalleryDatabase
 from osu_gallery.db.models import Pattern, Tag
 from osu_gallery.parser.osu_file import ParseError, parse_osu_file
@@ -36,7 +45,7 @@ class _PreviewPane(QWidget):
 
     _MIN_PANE_WIDTH = 300
     _MAX_PANE_WIDTH = 1200
-    _PREVIEW_HEIGHT = 768
+    _PREVIEW_HEIGHT = PREVIEW_HEIGHT
     _LABEL_BG_ALPHA = 180
 
     def __init__(
@@ -100,6 +109,39 @@ class _PreviewPane(QWidget):
 
         layout.addWidget(self._scroll, stretch=1)
 
+    # -- Event overrides --
+
+    def resizeEvent(self, event) -> None:  # noqa: ANN001
+        """Re-scale the loaded pixmap whenever the pane's width changes."""
+        super().resizeEvent(event)
+        if self._pixmap is not None and self._current_pattern_id is not None:
+            self._re_scale_pixmap()
+
+    def _re_scale_pixmap(self) -> None:
+        """Re-scale the current pixmap to fit the pane's current width."""
+        if self._pixmap is None:
+            return
+
+        available_width = self.width()
+        if available_width <= 0:
+            available_width = self._MIN_PANE_WIDTH
+        scaled_height = int(available_width * self._PREVIEW_HEIGHT / 1536)
+        scaled = self._pixmap.scaled(
+            available_width,
+            scaled_height,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+
+        for i in range(self._content_layout.count() - 1, -1, -1):
+            item = self._content_layout.itemAt(i)
+            if item is None:
+                continue
+            widget = item.widget()
+            if widget is not None and isinstance(widget, QLabel) and widget.pixmap() is not None:
+                widget.setPixmap(scaled)
+                break
+
     # -- Display states --
 
     def _clear_layout(self) -> None:
@@ -132,9 +174,18 @@ class _PreviewPane(QWidget):
         self._current_pattern_id = None
         self._current_preview_pattern_id = None
 
-    def load_pattern(self, pattern_id: int) -> None:
-        """Load and display a pattern's preview and metadata."""
-        if pattern_id == self._current_pattern_id:
+    def load_pattern(self, pattern_id: int, force: bool = False) -> None:
+        """Load and display a pattern's preview and metadata.
+
+        Parameters
+        ----------
+        pattern_id:
+            The pattern id to load.
+        force:
+            If True, reload even if this pattern is already displayed,
+            bypassing the cache guard.
+        """
+        if pattern_id == self._current_pattern_id and not force:
             return
 
         self._current_pattern_id = pattern_id
@@ -161,10 +212,11 @@ class _PreviewPane(QWidget):
         self._combo_colors = osu_file.combo_colors
         self._current_preview_pattern_id = pattern_id
 
-        # Check for user image first
-        if pattern.user_image:
+        # Check for user image: prefer preview-resolution copy, fall back to thumbnail
+        preview_bytes = pattern.user_image_preview or pattern.user_image
+        if preview_bytes:
             pixmap = QPixmap()
-            if pixmap.loadFromData(pattern.user_image):
+            if pixmap.loadFromData(preview_bytes):
                 self._pixmap = pixmap
             else:
                 logger.warning("Failed to load user image for pattern %d", pattern_id)
@@ -230,7 +282,15 @@ class _PreviewPane(QWidget):
         info_row.addStretch()
 
         if pattern.timing_bpm > 0:
-            bpm_label = QLabel(f"BPM: {pattern.timing_bpm:.0f}")
+            if (
+                pattern.timing_bpm_min
+                and pattern.timing_bpm_max
+                and pattern.timing_bpm_min != pattern.timing_bpm_max
+            ):
+                bpm_text = f"BPM: {pattern.timing_bpm_min:.0f}–{pattern.timing_bpm_max:.0f}"
+            else:
+                bpm_text = f"BPM: {pattern.timing_bpm:.0f}"
+            bpm_label = QLabel(bpm_text)
             bpm_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
             bpm_label.setStyleSheet("color: rgb(200, 200, 200);")
             info_row.addWidget(bpm_label)

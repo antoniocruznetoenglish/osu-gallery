@@ -377,10 +377,10 @@ def test_main_window_edit_opens_dialog(qtbot, db):
     window.close()
 
 
-def test_main_window_flow_layout_has_four_columns():
-    """MainWindow uses a flow layout with 4 columns."""
+def test_main_window_flow_layout_is_natural_wrap():
+    """MainWindow uses a flow layout in natural wrap mode (no fixed column count)."""
     window = MainWindow()
-    assert window._flow_layout._fixed_columns == 4
+    assert window._flow_layout._fixed_columns == 0
     window.close()
 
 
@@ -452,6 +452,75 @@ def test_e2e_four_columns_in_grid(qtbot, db):
     qtbot.wait(200)
 
     assert window._flow_layout.count() == 8
-    assert window._flow_layout._fixed_columns == 4
+    assert window._flow_layout._fixed_columns == 0
+
+    window.close()
+
+
+# -- BUG-117 regression: splitter resized before load_pattern --
+
+
+def test_preview_pane_has_resize_event():
+    """_PreviewPane overrides resizeEvent to re-scale the loaded pixmap."""
+    assert hasattr(_PreviewPane, "resizeEvent")
+    source = inspect.getsource(_PreviewPane.resizeEvent)
+    assert "super().resizeEvent" in source
+
+
+def test_on_pattern_clicked_resizes_splitter_before_loading(qtbot, db):
+    """_on_pattern_clicked sets splitter sizes BEFORE calling load_pattern."""
+    pattern = db.create_pattern(SAMPLE_OSU, object_count=1)
+    window = MainWindow(db_path=db.db_path)
+    qtbot.addWidget(window)
+    qtbot.waitExposed(window)
+
+    window.resize(1200, 700)
+    qtbot.wait(100)
+
+    initial_sizes = window._splitter.sizes()
+    old_right = initial_sizes[1] if len(initial_sizes) >= 2 else 0
+
+    window._on_pattern_clicked(pattern.id)
+    qtbot.wait(100)
+
+    new_sizes = window._splitter.sizes()
+    assert new_sizes[1] > old_right, "Preview pane should have opened after clicking a pattern"
+
+    window.close()
+
+
+# -- BUG-118 regression: force reload of same pattern --
+
+
+def test_load_pattern_force_reload(qtbot, db):
+    """load_pattern(pattern_id, force=True) reloads even when same pattern is already displayed."""
+    pattern = db.create_pattern(SAMPLE_OSU, object_count=1)
+    window = MainWindow(db_path=db.db_path)
+    qtbot.addWidget(window)
+    qtbot.waitExposed(window)
+
+    pane = window._preview_pane
+    pane.load_pattern(pattern.id)
+    assert pane._current_pattern_id == pattern.id
+
+    pane.load_pattern(pattern.id, force=True)
+    assert pane._current_pattern_id == pattern.id
+
+    window.close()
+
+
+def test_load_pattern_skips_cache_without_force(qtbot, db):
+    """load_pattern(pattern_id) skips reload when same pattern is already displayed."""
+    pattern = db.create_pattern(SAMPLE_OSU, object_count=1)
+    window = MainWindow(db_path=db.db_path)
+    qtbot.addWidget(window)
+    qtbot.waitExposed(window)
+
+    pane = window._preview_pane
+    pane.load_pattern(pattern.id)
+    first_id = pane._current_pattern_id
+
+    pane.load_pattern(pattern.id)
+    assert pane._current_pattern_id == first_id
 
     window.close()
