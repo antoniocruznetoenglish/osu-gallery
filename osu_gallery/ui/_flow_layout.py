@@ -131,12 +131,13 @@ class QFlowLayout(QLayout):
             self.addWidget(widget)
 
     def clear(self) -> None:
-        """Remove all items from the layout and delete them."""
+        """Remove all items from the layout and hide/delete their widgets."""
         while self._items:
             item = self._items.pop(0)
-            self.removeItem(item)
             try:
-                if widget := item.widget():
+                widget = item.widget()
+                if widget:
+                    widget.hide()
                     widget.deleteLater()
             except RuntimeError:
                 pass

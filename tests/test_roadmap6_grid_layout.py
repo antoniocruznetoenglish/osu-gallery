@@ -21,6 +21,7 @@ from osu_gallery._constants import (
     THUMBNAIL_WIDGET_MIN_WIDTH,
 )
 from osu_gallery.db.database import GalleryDatabase
+from osu_gallery.db.models import Pattern
 from osu_gallery.ui._preview_pane import _PreviewPane
 from osu_gallery.ui.main_window import MainWindow
 from osu_gallery.ui.thumbnail_widget import _ThumbnailWidget
@@ -181,3 +182,106 @@ def test_no_magic_numbers_in_ui():
 
     # Verify splitter uses 50% split logic (not hardcoded pixel values)
     assert "total_width // 2" in main_window_source or "total_width / 2" in main_window_source
+
+
+# ---------------------------------------------------------------------------
+# 8. BUG-124: clear() removes widgets from the tree immediately
+# ---------------------------------------------------------------------------
+
+
+def _make_patterns(ids: list[int]) -> list[Pattern]:
+    """Build a list of Pattern objects with the given ids (no DB reads)."""
+    return [Pattern(id=i, artist="test", title="test", mapper="test") for i in ids]
+
+
+def test_clear_hides_and_detaches_widgets_before_delete_later(qtbot, db):
+    """clear() must hide each widget so it disappears from view immediately,
+    not merely scheduled for deferred deletion via deleteLater().
+    """
+    from osu_gallery.ui._flow_layout import QFlowLayout
+    from PySide6.QtWidgets import QWidget
+
+    container = QWidget()
+    qtbot.addWidget(container)
+    flow = QFlowLayout(container)
+    container.setLayout(flow)
+    container.show()
+    qtbot.waitExposed(container)
+
+    widgets = [_ThumbnailWidget(pattern_id=i, db=db) for i in range(5)]
+    for w in widgets:
+        flow.addWidget(w)
+        w.show()
+    qtbot.waitExposed(container)
+
+    assert flow.count() == 5
+
+    flow.clear()
+
+    assert flow.count() == 0
+    for w in widgets:
+        assert w.isHidden()
+
+    container.close()
+
+
+def test_clear_hides_old_widgets_immediately(qtbot):
+    from osu_gallery.ui._flow_layout import QFlowLayout
+    from PySide6.QtWidgets import QWidget
+
+    container = QWidget()
+    qtbot.addWidget(container)
+    flow = QFlowLayout(container)
+    container.setLayout(flow)
+    container.show()
+    qtbot.waitExposed(container)
+
+    w = QWidget(container)
+    flow.addWidget(w)
+    w.show()
+    qtbot.waitExposed(w)
+    assert not w.isHidden()
+
+    flow.clear()
+    assert w.isHidden()
+
+
+def test_refresh_grid_replaces_old_widgets_not_accumulates(qtbot, db):
+    """Calling _refresh_grid with a new pattern list must leave exactly
+    that many widgets in the grid_widget — not old + new. This is the
+    user-visible symptom of BUG-124: searching then searching again
+    produces duplicated thumbnails on screen.
+    """
+    window = MainWindow(db_path=db.db_path)
+    qtbot.addWidget(window)
+    window.resize(1400, 700)
+    window.show()
+    qtbot.waitExposed(window)
+
+    scroll_widget = window._page_stack.widget(0).widget()
+
+    old_patterns = _make_patterns([1, 2, 3])
+    window._refresh_grid(old_patterns)
+    qtbot.wait(100)
+
+    old_widgets = scroll_widget.findChildren(_ThumbnailWidget)
+    assert len(old_widgets) == 3
+
+    for w in old_widgets:
+        w.show()
+    qtbot.waitExposed(window)
+
+    new_patterns = _make_patterns([4, 5])
+    window._refresh_grid(new_patterns)
+    qtbot.wait(100)
+
+    remaining_old = [w for w in old_widgets if w in scroll_widget.findChildren(_ThumbnailWidget)]
+    assert len(remaining_old) == 0, "Old widgets should be removed from the grid after refresh"
+
+    new_widgets = scroll_widget.findChildren(_ThumbnailWidget)
+    visible_new = [w for w in new_widgets if not w.isHidden()]
+    assert len(visible_new) == 2, (
+        f"Expected 2 visible widgets after refresh, got {len(visible_new)}"
+    )
+
+    window.close()
