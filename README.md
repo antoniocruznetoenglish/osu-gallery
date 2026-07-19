@@ -19,6 +19,8 @@ A visual reference library for osu! beatmap objects. Browse, search, and organiz
 ### Prerequisites
 
 - Python 3.10 or higher
+```winget install Python.Python.3.10
+```
 - pip (Python package manager)
 
 ### Installation
