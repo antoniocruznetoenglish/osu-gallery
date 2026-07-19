@@ -13,7 +13,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from osu_gallery._constants import THUMBNAIL_WIDGET_MIN_HEIGHT, THUMBNAIL_WIDGET_MIN_WIDTH
+from osu_gallery._constants import (
+    FONT_FAMILY,
+    THUMBNAIL_WIDGET_MIN_HEIGHT,
+    THUMBNAIL_WIDGET_MIN_WIDTH,
+)
 from osu_gallery.db.database import GalleryDatabase
 from osu_gallery.parser.models import OsuFile
 from osu_gallery.parser.osu_file import ParseError, parse_osu_file
@@ -187,7 +191,7 @@ class _ThumbnailWidget(QWidget):
     def _draw_error_indicator(self, painter: QPainter) -> None:
         """Draw a simple error indicator when no thumbnail is available."""
         painter.setPen(QColor(160, 160, 160))
-        painter.setFont(QFont("Segoe UI", 10))
+        painter.setFont(QFont(FONT_FAMILY, 10))
         label = "No preview"
         text_rect = painter.drawText(
             self.rect(),
@@ -206,7 +210,7 @@ class _ThumbnailWidget(QWidget):
             text = f"{self._slider_count} sliders"
         else:
             text = f"{self._object_count} objects"
-        font = QFont("Segoe UI", 9, QFont.Weight.Medium)
+        font = QFont(FONT_FAMILY, 9, QFont.Weight.Medium)
         painter.setFont(font)
 
         metrics = painter.fontMetrics()

@@ -28,7 +28,8 @@ def test_constants_module_exists() -> None:
     assert APP_NAME == "osu gallery"
     assert APP_VERSION == "0.1.0"
     assert DB_FILENAME == "gallery.db"
-    assert FONT_FAMILY == "Segoe UI"
+    assert isinstance(FONT_FAMILY, str)
+    assert len(FONT_FAMILY) > 0
     assert PREVIEW_PANE_WIDTH == 900
     assert THUMBNAIL_WIDGET_MIN_WIDTH == 220
     assert TOAST_DEFAULT_DURATION_MS == 1800
@@ -112,12 +113,6 @@ def test_db_path_uses_get_data_dir() -> None:
             del sys.frozen
         if not had_executable:
             del sys.executable
-
-
-def test_spec_file_exists() -> None:
-    """Verify the PyInstaller spec file exists."""
-    spec_path = Path(__file__).parent.parent / "osu_gallery.spec"
-    assert spec_path.exists(), f"Spec file not found at {spec_path}"
 
 
 def test_build_script_exists() -> None:

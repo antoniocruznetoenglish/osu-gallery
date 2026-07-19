@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 APP_NAME = "osu gallery"
 APP_VERSION = "0.1.0"
 DB_FILENAME = "gallery.db"
@@ -25,7 +27,12 @@ IMPORT_DIALOG_MIN_HEIGHT = 500
 LABEL_BG_ALPHA = 180
 NORMAL_BORDER_COLOR = (180, 180, 180)
 HOVER_BORDER_COLOR = (90, 150, 220)
-FONT_FAMILY = "Segoe UI"
+if sys.platform == "win32":
+    FONT_FAMILY = "Segoe UI"
+elif sys.platform == "darwin":
+    FONT_FAMILY = "Helvetica"
+else:
+    FONT_FAMILY = "Noto Sans"
 
 # Toast
 TOAST_DEFAULT_MESSAGE = "Copied!"

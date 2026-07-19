@@ -29,5 +29,33 @@ def copy_to_clipboard(text: str, parent: QObject | None = None) -> None:
         return
 
     clipboard = app.clipboard()
-    clipboard.setText(text)
+    try:
+        clipboard.setText(text)
+    except Exception as exc:
+        logger.warning(
+            "QClipboard.setText() raised %s: %s — clipboard write failed",
+            type(exc).__name__,
+            exc,
+        )
+        return
+
+    try:
+        readback = clipboard.text()
+    except Exception as exc:
+        logger.warning(
+            "QClipboard.text() readback raised %s: %s — cannot verify clipboard round-trip",
+            type(exc).__name__,
+            exc,
+        )
+        return
+
+    if readback != text:
+        logger.warning(
+            "Clipboard readback mismatch: wrote %d bytes, read back %d bytes — "
+            "the text may not be available to other applications on this system",
+            len(text),
+            len(readback),
+        )
+        return
+
     logger.debug("Copied %d bytes to clipboard", len(text))

@@ -10,10 +10,8 @@ eggs/
 *.egg
 
 # PyInstaller
-*.spec
 build/
 dist/
-*.spec
 
 # Testing
 .pytest_cache/

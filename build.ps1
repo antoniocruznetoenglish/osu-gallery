@@ -13,15 +13,26 @@ if (-not $pyinstaller) {
     pip install pyinstaller
 }
 
-# Clean previous build artifacts
+# Clean previous build artifacts (build/ and dist/ are the only disposable outputs)
 Write-Host "Cleaning previous build artifacts..." -ForegroundColor Yellow
 if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
 if (Test-Path "dist") { Remove-Item -Recurse -Force "dist" }
-if (Test-Path "osu_gallery.spec") { Remove-Item "osu_gallery.spec" }
 
-# Build
+# Build directly from the entry point — PyInstaller regenerates osu_gallery.spec every run.
+# --hidden-import flags cover PySide6's internal module references that the importer
+# cannot discover statically; --collect-data includes the package's non-Py data files.
 Write-Host "Building with PyInstaller..." -ForegroundColor Cyan
-pyinstaller osu_gallery.spec --clean
+pyinstaller `
+    --name osu-gallery `
+    --windowed `
+    --onefile `
+    --hidden-import PySide6 `
+    --hidden-import PySide6.QtCore `
+    --hidden-import PySide6.QtGui `
+    --hidden-import PySide6.QtWidgets `
+    --collect-data osu_gallery `
+    --collect-data PySide6 `
+    osu_gallery/__main__.py
 
 # Report
 if (Test-Path "dist\osu-gallery.exe") {
