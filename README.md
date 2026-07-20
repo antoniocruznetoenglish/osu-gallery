@@ -68,21 +68,23 @@ pytest
 
 ### Building a Standalone Executable (Windows)
 
+Both build modes use `--onedir` to keep the `data/` folder next to the executable (not in temp).
+
 #### Option A: PyInstaller (legacy)
 
 ```powershell
 .\build.ps1
 ```
 
-The compiled executable will be in `dist\osu-gallery.exe` (~234 MB).
+The compiled executable will be in `dist\osu-gallery\osu-gallery.exe` (~234 MB). Run `osu-gallery.exe` from the `dist\osu-gallery\` folder.
 
 #### Option B: Nuitka (recommended, smaller)
 
 ```powershell
-python -m nuitka --standalone --onefile --enable-plugin=pyside6 --nofollow-import-to=tkinter,pydoc,tests osu_gallery/__main__.py
+python -m nuitka --standalone --enable-plugin=pyside6 --nofollow-import-to=tkinter,pydoc,tests osu_gallery/__main__.py
 ```
 
-The compiled executable will be `osu-gallery.exe` in the project root (~78 MB). Requires Visual Studio Build Tools or MinGW for the C++ compiler.
+The compiled executable will be in `dist\osu-gallery\osu-gallery.exe` (~78 MB). Requires Visual Studio Build Tools or MinGW for the C++ compiler.
 
 ### Release Executable
 

@@ -21,11 +21,12 @@ if (Test-Path "dist") { Remove-Item -Recurse -Force "dist" }
 # Build directly from the entry point — PyInstaller regenerates osu_gallery.spec every run.
 # --hidden-import flags cover PySide6's internal module references that the importer
 # cannot discover statically; --collect-data includes the package's non-Py data files.
+# --onedir mode keeps data/ folder next to the exe (not in temp like --onefile).
 Write-Host "Building with PyInstaller..." -ForegroundColor Cyan
 pyinstaller `
     --name osu-gallery `
     --windowed `
-    --onefile `
+    --onedir `
     --hidden-import PySide6 `
     --hidden-import PySide6.QtCore `
     --hidden-import PySide6.QtGui `
