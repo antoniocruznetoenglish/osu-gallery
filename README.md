@@ -70,7 +70,7 @@ pytest
 
 Both build modes use `--onedir` to keep the `data/` folder next to the executable (not in temp).
 
-#### Option A: PyInstaller (legacy)
+#### Option A: PyInstaller
 
 ```powershell
 .\build.ps1
@@ -84,11 +84,11 @@ The compiled executable will be in `dist\osu-gallery\osu-gallery.exe` (~234 MB).
 python -m nuitka --standalone --enable-plugin=pyside6 --nofollow-import-to=tkinter,pydoc,tests osu_gallery/__main__.py
 ```
 
-The compiled executable will be in `dist\osu-gallery\osu-gallery.exe` (~78 MB). Requires Visual Studio Build Tools or MinGW for the C++ compiler.
+The compiled executable will be in `__main__.dist\osu-gallery.exe` (~78 MB). Requires Visual Studio Build Tools or MinGW for the C++ compiler.
 
 ### Release Executable
 
-Pre-built release executables are available in the [releases](https://github.com/antoniocruznetoenglish/osu-gallery/releases) page. The Nuitka build (~78 MB) is the recommended version. No installation required — just run `osu-gallery.exe`.
+Pre-built release executables are available in the [releases](https://github.com/antoniocruznetoenglish/osu-gallery/releases) page. Download `osu-gallery-v0.1.0.zip`, extract, and run `osu-gallery.exe`. No installation required.
 
 ## Project Structure
 
