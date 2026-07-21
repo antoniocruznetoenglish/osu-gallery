@@ -58,18 +58,16 @@ def db(tmp_path):
 
 
 def test_edit_dialog_has_attach_image_button(qtbot, db):
-    """EditDialog has an attach image button that is wired to _on_attach_image."""
+    """EditDialog has an image drop target wired to _on_image_dropped."""
     pattern = db.create_pattern(SAMPLE_OSU, object_count=3)
     dialog = EditDialog(pattern=pattern, db=db)
     qtbot.addWidget(dialog)
     qtbot.waitExposed(dialog)
 
-    assert hasattr(dialog, "_attach_image_button")
-    assert dialog._attach_image_button.text() == "Attach Screenshot"
-
+    assert hasattr(dialog, "_image_drop_target")
     assert hasattr(dialog, "_image_filename_label")
-    assert hasattr(dialog, "_on_attach_image")
-    assert callable(dialog._on_attach_image)
+    assert hasattr(dialog, "_on_image_dropped")
+    assert callable(dialog._on_image_dropped)
     dialog.close()
 
 

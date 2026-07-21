@@ -14,20 +14,13 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PySide6.QtWidgets import (
-    QHBoxLayout,
-    QLabel,
-    QPushButton,
-    QScrollArea,
-    QVBoxLayout,
-    QWidget,
-)
 
 from osu_gallery._constants import PREVIEW_HEIGHT
 from osu_gallery.db.database import GalleryDatabase
 from osu_gallery.db.models import Pattern, Tag
 from osu_gallery.parser.osu_file import ParseError, parse_osu_file
 from osu_gallery.preview.thumbnail_renderer import render_pattern_preview
+from osu_gallery.tags._format_helpers import format_object_count
 from osu_gallery.ui._clipboard import copy_to_clipboard
 
 logger = logging.getLogger(__name__)
@@ -266,11 +259,13 @@ class _PreviewPane(QWidget):
         info_row = QHBoxLayout()
 
         if pattern.circle_count > 0 and pattern.slider_count > 0:
-            count_text = f"{pattern.circle_count} circles, {pattern.slider_count} sliders"
+            circle_text = format_object_count(pattern.circle_count, "circle")
+            slider_text = format_object_count(pattern.slider_count, "slider")
+            count_text = f"{circle_text}, {slider_text}"
         elif pattern.circle_count > 0:
-            count_text = f"{pattern.circle_count} circles"
+            count_text = format_object_count(pattern.circle_count, "circle")
         elif pattern.slider_count > 0:
-            count_text = f"{pattern.slider_count} sliders"
+            count_text = format_object_count(pattern.slider_count, "slider")
         else:
             count_text = f"{pattern.object_count} objects"
 

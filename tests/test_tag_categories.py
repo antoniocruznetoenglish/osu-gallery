@@ -12,6 +12,7 @@ from osu_gallery.db.database import GalleryDatabase, set_search_engine
 from osu_gallery.parser.osu_file import parse_osu_file
 from osu_gallery.search.engine import SearchEngine, SearchQuery
 from osu_gallery.tags import TAG_CATEGORY_MAPPING, TAG_CATEGORY_METADATA
+from osu_gallery.tags._format_helpers import format_object_count
 from osu_gallery.tags.mapping_tags import detect_object_tags
 
 SAMPLE_WITH_TAGS = """[General]
@@ -96,7 +97,7 @@ def test_detect_object_tags_circles_and_sliders():
     osu_file = parse_osu_file(SAMPLE_WITH_TAGS)
     tags = detect_object_tags(osu_file)
     assert "2 circles" in tags
-    assert "1 sliders" in tags
+    assert "1 slider" in tags
 
 
 def test_detect_object_tags_spinners():
@@ -110,8 +111,8 @@ AudioFilename: test.mp3
 """
     osu_file = parse_osu_file(content)
     tags = detect_object_tags(osu_file)
-    assert "1 circles" in tags
-    assert "1 spinners" in tags
+    assert "1 circle" in tags
+    assert "1 spinner" in tags
 
 
 def test_detect_object_tags_no_slider_pattern_auto_detection():
@@ -141,6 +142,45 @@ AudioFilename: test.mp3
     osu_file = parse_osu_file(content)
     tags = detect_object_tags(osu_file)
     assert tags == []
+
+
+# -- format_object_count tests --
+
+
+def test_format_object_count_singular_circle():
+    """Count of 1 circle returns singular form."""
+    assert format_object_count(1, "circle") == "1 circle"
+
+
+def test_format_object_count_singular_slider():
+    """Count of 1 slider returns singular form."""
+    assert format_object_count(1, "slider") == "1 slider"
+
+
+def test_format_object_count_singular_spinner():
+    """Count of 1 spinner returns singular form."""
+    assert format_object_count(1, "spinner") == "1 spinner"
+
+
+def test_format_object_count_plural_circle():
+    """Count of 3 circles returns plural form."""
+    assert format_object_count(3, "circle") == "3 circles"
+
+
+def test_format_object_count_plural_slider():
+    """Count of 2 sliders returns plural form."""
+    assert format_object_count(2, "slider") == "2 sliders"
+
+
+def test_format_object_count_zero():
+    """Count of 0 circles returns plural form."""
+    assert format_object_count(0, "circle") == "0 circles"
+
+
+def test_format_object_count_invalid_type():
+    """Unknown object type raises ValueError."""
+    with pytest.raises(ValueError):
+        format_object_count(1, "circle_pattern")
 
 
 # -- Tag category constants --

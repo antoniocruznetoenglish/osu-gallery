@@ -9,13 +9,13 @@ from __future__ import annotations
 import json
 import logging
 import re
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
-    QFileDialog,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -34,6 +34,8 @@ from osu_gallery.parser.osu_file import ParseError, parse_osu_file
 from osu_gallery.preview.image_resizer import resize_image_for_preview, resize_image_for_thumbnail
 from osu_gallery.tags import TAG_CATEGORY_MAPPING, TAG_CATEGORY_METADATA
 from osu_gallery.tags.mapping_tags import detect_object_tags
+from osu_gallery.ui._image_drop_target import ImageDropTarget
+from osu_gallery.ui._osu_text_normalizer import normalize_osu_text
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +161,7 @@ class ImportDialog(QDialog):
         self._success_label.hide()
         layout.addWidget(self._success_label, 4, 0, 1, 2)
 
-        self._parse_button = QPushButton("Parse & Save")
+        self._parse_button = QPushButton("Save the Pattern")
         self._parse_button.setMinimumHeight(36)
         layout.addWidget(self._parse_button, 5, 0, 1, 1)
 
@@ -167,37 +169,39 @@ class ImportDialog(QDialog):
         self._cancel_button.setMinimumHeight(36)
         layout.addWidget(self._cancel_button, 5, 1, 1, 1)
 
-        self._attach_image_button = QPushButton("Attach Screenshot")
-        self._attach_image_button.setMinimumHeight(36)
-        layout.addWidget(self._attach_image_button, 6, 0, 1, 1)
+        self._image_drop_target = ImageDropTarget()
+        self._image_drop_target.image_selected.connect(self._on_image_dropped)
+        layout.addWidget(self._image_drop_target, 6, 0, 1, 2)
 
         self._image_filename_label = QLabel("")
         self._image_filename_label.setWordWrap(True)
         self._image_filename_label.setStyleSheet("color: rgb(160, 160, 160);")
-        layout.addWidget(self._image_filename_label, 6, 1, 1, 1)
+        layout.addWidget(self._image_filename_label, 7, 0, 1, 2)
 
     def _setup_connections(self) -> None:
         """Wire up signal-slot connections for button clicks."""
         self._parse_button.clicked.connect(self._on_parse_and_save)
         self._cancel_button.clicked.connect(self.reject)
-        self._attach_image_button.clicked.connect(self._on_attach_image)
+        self._image_drop_target.image_selected.connect(self._on_image_dropped)
 
     # -- Actions --
 
     def _on_parse_and_save(self) -> None:
-        """Handle the Parse & Save button click.
+        """Handle the Save the Pattern button click.
 
-        Reads the text edit content, parses it, saves the pattern to
-        the database, extracts and links tags, and updates the UI
-        with success or error feedback.
+        Normalizes pasted .osu text (restoring Discord-collapsed line
+        breaks), parses it, saves the pattern to the database, extracts
+        and links tags, and updates the UI with success or error feedback.
         """
         self._clear_feedback()
 
-        content = self._text_edit.toPlainText()
+        raw_content = self._text_edit.toPlainText()
 
-        if not content.strip():
+        if not raw_content.strip():
             self._show_error("Please paste .osu file content before saving.")
             return
+
+        content = normalize_osu_text(raw_content)
 
         has_hitobjects = self._has_hitobjects_section(content)
         parse_content = content if has_hitobjects else self._wrap_in_hitobjects(content)
@@ -294,14 +298,17 @@ class ImportDialog(QDialog):
             linked_tag_names,
         )
 
-    def _on_attach_image(self) -> None:
-        """Open file dialog to select an image file."""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Attach Screenshot", "", "Images (*.png *.jpg *.jpeg *.bmp)"
-        )
-        if file_path:
-            self._selected_image_path = file_path
-            self._image_filename_label.setText(file_path)
+    def _on_image_dropped(self, file_path: str) -> None:
+        """Handle a successfully dropped image file.
+
+        Sets the selected image path and updates the filename label
+        to show the basename of the dropped file.
+
+        Args:
+            file_path: The local file path of the dropped image.
+        """
+        self._selected_image_path = file_path
+        self._image_filename_label.setText(Path(file_path).name)
 
     def _get_selected_image_bytes(self) -> tuple[bytes, bytes]:
         """Read and resize the selected image for both thumbnail and preview storage.

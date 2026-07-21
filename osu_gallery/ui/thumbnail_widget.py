@@ -22,6 +22,7 @@ from osu_gallery.db.database import GalleryDatabase
 from osu_gallery.parser.models import OsuFile
 from osu_gallery.parser.osu_file import ParseError, parse_osu_file
 from osu_gallery.preview.thumbnail_renderer import render_thumbnail
+from osu_gallery.tags._format_helpers import format_object_count
 from osu_gallery.ui._clipboard import copy_to_clipboard
 from osu_gallery.ui._toast_widget import show_toast
 
@@ -203,11 +204,13 @@ class _ThumbnailWidget(QWidget):
     def _draw_object_count_label(self, painter: QPainter) -> None:
         """Draw the object count label at the bottom of the widget."""
         if self._circle_count > 0 and self._slider_count > 0:
-            text = f"{self._circle_count} circles, {self._slider_count} sliders"
+            circle_text = format_object_count(self._circle_count, "circle")
+            slider_text = format_object_count(self._slider_count, "slider")
+            text = f"{circle_text}, {slider_text}"
         elif self._circle_count > 0:
-            text = f"{self._circle_count} circles"
+            text = format_object_count(self._circle_count, "circle")
         elif self._slider_count > 0:
-            text = f"{self._slider_count} sliders"
+            text = format_object_count(self._slider_count, "slider")
         else:
             text = f"{self._object_count} objects"
         font = QFont(FONT_FAMILY, 9, QFont.Weight.Medium)

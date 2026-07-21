@@ -222,3 +222,12 @@ bugs from the last one" (Roadmap 4) shipped a brand-new critical bug
 (BUG-101/102) in the same session, with tests written to hide it. Don't
 trust a `Done` checkbox in any roadmap file without re-running the actual
 feature.
+
+---
+
+## 8. Newly Logged (2026-07-21: Import Usability)
+
+| ID | Sev | Area | Summary | Root cause | Fix direction | Status |
+|---|---|---|---|---|---|---|
+| BUG-128 | High | ui/import_dialog.py _on_parse_and_save | Discord-collapsed .osu text fails to parse because _has_hitobjects_section requires [HitObjects] followed by newline; collapsed single-line input is never detected. | Add pure normalization step before section detection in osu_gallery/ui/_osu_text_normalizer.py restoring section headers and hit-object newlines. | **Resolved** -- normalize_osu_text() implemented, integrated into import_dialog before parsing, 22 focused unit tests. |
+| BUG-129 | Medium | tags/mapping_tags.py, ui/thumbnail_widget.py, ui/_preview_pane.py | Object count labels use plural form for count=1: "1 circles", "1 sliders", "1 spinners" instead of "1 circle", "1 slider", "1 spinner". | Add shared format_object_count helper in osu_gallery/tags/_format_helpers.py returning singular for count=1 and plural otherwise; apply in mapping_tags.py, thumbnail_widget.py, _preview_pane.py. | **Resolved** -- format_object_count() implemented, all three consumers updated, 7 new formatter tests + updated existing tag tests. |

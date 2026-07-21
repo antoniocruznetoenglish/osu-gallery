@@ -6,6 +6,8 @@ from PySide6.QtWidgets import QDialog, QLabel, QWidget
 
 from osu_gallery.db.database import GalleryDatabase, set_search_engine
 from osu_gallery.search.engine import SearchEngine
+from osu_gallery.ui._image_drop_target import ImageDropTarget
+from osu_gallery.ui.edit_dialog import EditDialog
 from osu_gallery.ui.import_dialog import ImportDialog
 from osu_gallery.ui.main_window import MainWindow
 
@@ -224,7 +226,7 @@ Tags:slider circle_pattern
 
     tags = db.get_all_tags()
     tag_names = {t.name for t in tags}
-    assert "1 sliders" in tag_names
+    assert "1 slider" in tag_names
     assert "slider" not in tag_names
     assert "circle_pattern" not in tag_names
     assert "TestMapper" not in tag_names
@@ -304,3 +306,46 @@ def test_main_window_search_by_tag(qtbot, db):
     assert window._flow_layout.itemAt(0).widget()._pattern_id == p1.id
 
     window.close()
+
+
+# -- Drop target integration tests --
+
+
+def test_import_dialog_has_drop_target(qtbot, db):
+    """ImportDialog should have an _image_drop_target attribute of type ImageDropTarget."""
+    dialog = ImportDialog(db=db)
+    qtbot.addWidget(dialog)
+    qtbot.waitExposed(dialog)
+
+    assert hasattr(dialog, "_image_drop_target")
+    assert isinstance(dialog._image_drop_target, ImageDropTarget)
+
+
+def test_import_dialog_no_attach_button(qtbot, db):
+    """ImportDialog should not have an _attach_image_button attribute."""
+    dialog = ImportDialog(db=db)
+    qtbot.addWidget(dialog)
+    qtbot.waitExposed(dialog)
+
+    assert not hasattr(dialog, "_attach_image_button")
+
+
+def test_edit_dialog_has_drop_target(qtbot, db):
+    """EditDialog should have an _image_drop_target attribute of type ImageDropTarget."""
+    pattern = db.create_pattern(SAMPLE_OSU, object_count=3)
+    dialog = EditDialog(pattern=pattern, db=db)
+    qtbot.addWidget(dialog)
+    qtbot.waitExposed(dialog)
+
+    assert hasattr(dialog, "_image_drop_target")
+    assert isinstance(dialog._image_drop_target, ImageDropTarget)
+
+
+def test_edit_dialog_no_attach_button(qtbot, db):
+    """EditDialog should not have an _attach_image_button attribute."""
+    pattern = db.create_pattern(SAMPLE_OSU, object_count=3)
+    dialog = EditDialog(pattern=pattern, db=db)
+    qtbot.addWidget(dialog)
+    qtbot.waitExposed(dialog)
+
+    assert not hasattr(dialog, "_attach_image_button")

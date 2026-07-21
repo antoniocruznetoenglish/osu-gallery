@@ -55,7 +55,7 @@ def test_detect_object_tags_circles_and_sliders():
     osu = parse_osu_file(MIXED)
     tags = detect_object_tags(osu)
     assert "2 circles" in tags
-    assert "1 sliders" in tags
+    assert "1 slider" in tags
 
 
 def test_detect_object_tags_with_spinners():
@@ -63,7 +63,7 @@ def test_detect_object_tags_with_spinners():
     osu = parse_osu_file(WITH_SPINNERS)
     tags = detect_object_tags(osu)
     assert "2 circles" in tags
-    assert "1 spinners" in tags
+    assert "1 spinner" in tags
 
 
 def test_no_slider_pattern_auto_detection():

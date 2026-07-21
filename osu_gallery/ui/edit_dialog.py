@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
-    QFileDialog,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -25,6 +25,7 @@ from osu_gallery._constants import MAPPING_TAG_OPTIONS
 from osu_gallery.db.database import GalleryDatabase
 from osu_gallery.db.models import Pattern
 from osu_gallery.preview.image_resizer import resize_image_for_preview, resize_image_for_thumbnail
+from osu_gallery.ui._image_drop_target import ImageDropTarget
 
 logger = logging.getLogger(__name__)
 
@@ -200,14 +201,14 @@ class EditDialog(QDialog):
         self._cancel_button.setMinimumHeight(36)
         layout.addWidget(self._cancel_button, 6, 1, 1, 1)
 
-        self._attach_image_button = QPushButton("Attach Screenshot")
-        self._attach_image_button.setMinimumHeight(36)
-        layout.addWidget(self._attach_image_button, 7, 0, 1, 1)
+        self._image_drop_target = ImageDropTarget()
+        self._image_drop_target.image_selected.connect(self._on_image_dropped)
+        layout.addWidget(self._image_drop_target, 7, 0, 1, 2)
 
         self._image_filename_label = QLabel("")
         self._image_filename_label.setWordWrap(True)
         self._image_filename_label.setStyleSheet("color: rgb(160, 160, 160);")
-        layout.addWidget(self._image_filename_label, 7, 1, 1, 1)
+        layout.addWidget(self._image_filename_label, 8, 0, 1, 2)
 
     def _populate_fields(self) -> None:
         """Fill all form fields with the current pattern data."""
@@ -230,7 +231,7 @@ class EditDialog(QDialog):
         """Wire up signal-slot connections for button clicks."""
         self._save_button.clicked.connect(self._on_save)
         self._cancel_button.clicked.connect(self.reject)
-        self._attach_image_button.clicked.connect(self._on_attach_image)
+        self._image_drop_target.image_selected.connect(self._on_image_dropped)
 
     # -- Actions --
 
@@ -322,14 +323,17 @@ class EditDialog(QDialog):
 
         self._pattern.tag_ids = list(new_tag_ids)
 
-    def _on_attach_image(self) -> None:
-        """Open file dialog to select an image file."""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Attach Screenshot", "", "Images (*.png *.jpg *.jpeg *.bmp)"
-        )
-        if file_path:
-            self._selected_image_path = file_path
-            self._image_filename_label.setText(file_path)
+    def _on_image_dropped(self, file_path: str) -> None:
+        """Handle a successfully dropped image file.
+
+        Sets the selected image path and updates the filename label
+        to show the basename of the dropped file.
+
+        Args:
+            file_path: The local file path of the dropped image.
+        """
+        self._selected_image_path = file_path
+        self._image_filename_label.setText(Path(file_path).name)
 
     def _get_selected_image_bytes(self) -> tuple[bytes, bytes]:
         """Read and resize the selected image for both thumbnail and preview storage.

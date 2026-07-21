@@ -48,7 +48,7 @@ Priority: **P0** = core loop, ships without it = pointless. **P1** = should have
 
 | ID | Priority | Feature | User Story (As a... I want... So that...) |
 |---|---|---|---|
-| F1 | P0 | Manual import of .osu code blocks | As a mapper, I want to paste or manually input object code so that I can save patterns to my gallery without client integration |
+| F1 | P0 | Manual import of .osu code blocks | As a mapper, I want to paste or drag-drop object code and screenshots so that I can save patterns to my gallery without client integration |
 | F2 | P0 | Search bar with live results | As a mapper, I want to type search terms and see thumbnails instantly so that I can find patterns without leaving my workflow |
 | F3 | P0 | Thumbnail grid with click-to-expand | As a mapper, I want to click a thumbnail and see a larger view so that I can study the pattern details |
 | F4 | P0 | Copy object code to clipboard | As a mapper, I want to copy the raw object code with one click so that I can paste it into my .osu file |

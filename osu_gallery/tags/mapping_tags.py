@@ -8,6 +8,7 @@ by the user via the import dialog.
 from __future__ import annotations
 
 from osu_gallery.parser.models import OsuFile
+from osu_gallery.tags._format_helpers import format_object_count
 
 
 def detect_object_tags(osu_file: OsuFile) -> list[str]:
@@ -24,10 +25,10 @@ def detect_object_tags(osu_file: OsuFile) -> list[str]:
     """
     tags: list[str] = []
     if osu_file.circle_count > 0:
-        tags.append(f"{osu_file.circle_count} circles")
+        tags.append(format_object_count(osu_file.circle_count, "circle"))
     if osu_file.slider_count > 0:
-        tags.append(f"{osu_file.slider_count} sliders")
+        tags.append(format_object_count(osu_file.slider_count, "slider"))
     spinners = sum(1 for obj in osu_file.hit_objects if obj.is_spinner)
     if spinners > 0:
-        tags.append(f"{spinners} spinners")
+        tags.append(format_object_count(spinners, "spinner"))
     return tags
