@@ -10,6 +10,7 @@ eggs/
 *.egg
 
 # PyInstaller
+*.spec
 build/
 dist/
 
