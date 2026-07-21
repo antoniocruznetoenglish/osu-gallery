@@ -36,9 +36,9 @@ pyinstaller `
     osu_gallery/__main__.py
 
 # Report
-if (Test-Path "dist\osu-gallery.exe") {
-    $exeSize = (Get-Item "dist\osu-gallery.exe").Length / 1MB
-    Write-Host "Build complete! Output: dist\osu-gallery.exe ($([math]::Round($exeSize, 1)) MB)" -ForegroundColor Green
+if (Test-Path "dist\osu-gallery\osu-gallery.exe") {
+    $exeSize = (Get-Item "dist\osu-gallery\osu-gallery.exe").Length / 1MB
+    Write-Host "Build complete! Output: dist\osu-gallery\osu-gallery.exe ($([math]::Round($exeSize, 1)) MB)" -ForegroundColor Green
 } else {
     Write-Host "Build failed!" -ForegroundColor Red
     exit 1
