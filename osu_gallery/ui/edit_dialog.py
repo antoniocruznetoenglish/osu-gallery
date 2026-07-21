@@ -202,7 +202,6 @@ class EditDialog(QDialog):
         layout.addWidget(self._cancel_button, 6, 1, 1, 1)
 
         self._image_drop_target = ImageDropTarget()
-        self._image_drop_target.image_selected.connect(self._on_image_dropped)
         layout.addWidget(self._image_drop_target, 7, 0, 1, 2)
 
         self._image_filename_label = QLabel("")

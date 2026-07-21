@@ -61,23 +61,29 @@ class ImageDropTarget(QFrame):
         )
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
-        """Handle drag enter -- accept if a single image file is being dragged.
+        """Handle drag enter -- accept any event carrying URLs.
+
+        Accepting all URL-bearing events ensures Qt delivers the drop event
+        even for invalid drops, so ``dropEvent()`` can show error feedback.
 
         Args:
             event: The drag enter event.
         """
-        if self._is_valid_drop_event(event):
+        if event.mimeData().hasUrls():
             event.acceptProposedAction()
         else:
             event.ignore()
 
     def dragMoveEvent(self, event: QDragMoveEvent) -> None:
-        """Handle drag move -- accept if the drop is still valid.
+        """Handle drag move -- accept any event carrying URLs.
+
+        Accepting all URL-bearing events ensures Qt delivers the drop event
+        even for invalid drops, so ``dropEvent()`` can show error feedback.
 
         Args:
             event: The drag move event.
         """
-        if self._is_valid_drop_event(event):
+        if event.mimeData().hasUrls():
             event.acceptProposedAction()
         else:
             event.ignore()

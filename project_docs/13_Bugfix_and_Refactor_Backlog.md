@@ -231,3 +231,12 @@ feature.
 |---|---|---|---|---|---|---|
 | BUG-128 | High | ui/import_dialog.py _on_parse_and_save | Discord-collapsed .osu text fails to parse because _has_hitobjects_section requires [HitObjects] followed by newline; collapsed single-line input is never detected. | Add pure normalization step before section detection in osu_gallery/ui/_osu_text_normalizer.py restoring section headers and hit-object newlines. | **Resolved** -- normalize_osu_text() implemented, integrated into import_dialog before parsing, 22 focused unit tests. |
 | BUG-129 | Medium | tags/mapping_tags.py, ui/thumbnail_widget.py, ui/_preview_pane.py | Object count labels use plural form for count=1: "1 circles", "1 sliders", "1 spinners" instead of "1 circle", "1 slider", "1 spinner". | Add shared format_object_count helper in osu_gallery/tags/_format_helpers.py returning singular for count=1 and plural otherwise; apply in mapping_tags.py, thumbnail_widget.py, _preview_pane.py. | **Resolved** -- format_object_count() implemented, all three consumers updated, 7 new formatter tests + updated existing tag tests. |
+
+
+---
+
+## 9. Newly Logged (2026-07-21: Drag-drop feedback fix)
+
+| ID | Sev | Area | Summary | Root cause | Fix direction | Status |
+|---|---|---|---|---|---|---|
+| BUG-130 | High | ui/_image_drop_target.py dragEnterEvent/dragMoveEvent | Invalid URL-based drops (unsupported extension, directory, multiple files, remote URL) produce no visible feedback -- dragEnterEvent/dragMoveEvent call _is_valid_drop_event which returns False, causing Qt to skip dropEvent entirely so the validation/error-feedback path is unreachable. | Change dragEnterEvent/dragMoveEvent to accept all URL-bearing drags (event.mimeData().hasUrls()) so Qt delivers dropEvent for all URL drops; the existing dropEvent validation + _show_error + logger.warning path then runs for every case. Also remove duplicate image_selected connection in EditDialog._setup_ui (kept only in _setup_connections). | **Resolved** -- verified: dragEnterEvent now accepts URL-bearing events; dropEvent runs full validation showing error label + warning log for all invalid cases; 10 event-level tests pass; duplicate connection removed; 502 tests passing. |
